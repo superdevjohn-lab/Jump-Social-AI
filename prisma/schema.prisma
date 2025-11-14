@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum SocialPlatform {
+  LINKEDIN
+  FACEBOOK
+}
+
+enum MeetingPlatform {
+  ZOOM
+  GOOGLE_MEET
+  MICROSOFT_TEAMS
+  OTHER
+}
+
+enum MeetingStatus {
+  UPCOMING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum SocialPostStatus {
+  DRAFT
+  READY
+  POSTED
+  FAILED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts  Account[]
+  sessions  Session[]
+  settings  Setting?
+  meetings  Meeting[]
+  posts     SocialPost[]
+  automations Automation[]
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String? @db.Text
+  access_token       String? @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String? @db.Text
+  session_state      String?
+  refresh_token_expires_in Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Setting {
+  id                  String  @id @default(cuid())
+  userId              String  @unique
+  botLeadTimeMinutes  Int     @default(5)
+  defaultAutomationId String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  defaultAutomation Automation? @relation("default_automation", fields: [defaultAutomationId], references: [id])
+}
+
+model Automation {
+  id          String        @id @default(cuid())
+  userId      String
+  name        String
+  platform    SocialPlatform
+  prompt      String        @db.Text
+  enabled     Boolean       @default(true)
+  autoPost    Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  defaultedSettings Setting[] @relation("default_automation")
+  posts    SocialPost[]
+}
+
+model Meeting {
+  id                String          @id @default(cuid())
+  userId            String
+  externalEventId   String
+  title             String
+  description       String?
+  platform          MeetingPlatform @default(OTHER)
+  conferenceUrl     String?
+  startTime         DateTime
+  endTime           DateTime
+  attendees         Json
+  timezone          String?
+  notetakerEnabled  Boolean         @default(false)
+  recallBotId       String?
+  recallStatus      String?
+  status            MeetingStatus   @default(UPCOMING)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transcript  MeetingTranscript?
+  socialPosts SocialPost[]
+
+  @@unique([userId, externalEventId])
+}
+
+model MeetingTranscript {
+  id          String   @id @default(cuid())
+  meetingId   String   @unique
+  summary     String?  @db.Text
+  rawText     String   @db.Text
+  data        Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+}
+
+model SocialPost {
+  id            String           @id @default(cuid())
+  meetingId     String
+  automationId  String?
+  userId        String
+  platform      SocialPlatform
+  content       String           @db.Text
+  status        SocialPostStatus @default(DRAFT)
+  externalPostId String?
+  postedAt      DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  meeting    Meeting    @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  automation Automation? @relation(fields: [automationId], references: [id])
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
