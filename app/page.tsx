@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { auth, signIn, signOut } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
@@ -100,7 +102,9 @@ export default async function Home() {
         </p>
         <div className="flex flex-wrap gap-3">
           {session ? (
-            <Button size="lg">Go to dashboard</Button>
+            <Button size="lg" asChild>
+              <Link href="/dashboard">Go to dashboard</Link>
+            </Button>
           ) : defaultProvider ? (
             <form action={providerActions[defaultProvider.id]}>
               <Button size="lg" type="submit">

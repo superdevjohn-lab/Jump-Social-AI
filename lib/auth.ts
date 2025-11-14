@@ -17,6 +17,15 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      authorization: {
+        params: {
+          prompt: "consent",
+          access_type: "offline",
+          response_type: "code",
+          scope:
+            "openid email profile https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events.readonly",
+        },
+      },
       allowDangerousEmailAccountLinking: true,
     }),
   );
@@ -114,7 +123,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
   callbacks: {
     session: async ({ session, user }: { session: Session; user: User }) => {
-      if (session.user) {
+      if (session.user && user.id) {
         session.user.id = user.id;
         session.user.name = session.user.name ?? user.name;
         session.user.email = session.user.email ?? user.email;
@@ -125,6 +134,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   events: {
     createUser: async ({ user }: { user: User }) => {
+      if (!user.id) return;
+
       await prisma.setting.upsert({
         where: { userId: user.id },
         create: {
