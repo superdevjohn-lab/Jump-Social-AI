@@ -596,6 +596,7 @@ function NotetakerAction({
       <NotetakerToggle
         meetingId={meeting.id}
         enabled={meeting.notetakerEnabled}
+        recallStatus={meeting.recallStatus}
       />
     );
   }
