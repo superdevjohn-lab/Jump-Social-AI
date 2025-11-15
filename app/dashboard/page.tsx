@@ -39,6 +39,7 @@ import { PlatformLogo } from "@/lib/platform-utils";
 import { AutoRefreshMeetings } from "@/components/auto-refresh-meetings";
 import { RefreshMeetingsButton } from "@/components/refresh-meetings-button";
 import { AutoSyncOnMount } from "@/components/auto-sync-on-mount";
+import { SyncAndRefreshButton } from "@/components/sync-and-refresh-button";
 
 const SUPPORTED_PLATFORMS = new Set<MeetingPlatform>([
   MeetingPlatform.ZOOM,
@@ -245,10 +246,7 @@ export default async function DashboardPage({
 
   return (
     <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 px-6 py-12">
-      <AutoSyncOnMount
-        enabled={googleAccountCount > 0}
-        syncAction={syncCalendarsAction}
-      />
+      <AutoSyncOnMount enabled={googleAccountCount > 0} />
       <AutoRefreshMeetings
         autoSyncOnMount={false}
         refreshInterval={30000}
@@ -302,11 +300,7 @@ export default async function DashboardPage({
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <RefreshMeetingsButton
-                onSync={async () => {
-                  await syncCalendarsAction();
-                }}
-              />
+              <SyncAndRefreshButton />
               <div className="flex gap-2">
                 <Button
                   variant={viewParam === "list" ? "default" : "outline"}

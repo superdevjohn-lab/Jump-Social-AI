@@ -1,29 +1,31 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useState } from "react";
 
-type RefreshMeetingsButtonProps = {
-  syncAction?: () => Promise<void>;
+type SyncAndRefreshButtonProps = {
   variant?: "default" | "outline" | "ghost";
   size?: "sm" | "default" | "lg";
 };
 
-export function RefreshMeetingsButton({
-  syncAction,
+export function SyncAndRefreshButton({
   variant = "outline",
   size = "sm",
-}: RefreshMeetingsButtonProps) {
+}: SyncAndRefreshButtonProps) {
   const router = useRouter();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      if (syncAction) {
-        await syncAction();
+      // Call the sync API endpoint
+      const response = await fetch("/api/sync-calendars", {
+        method: "POST",
+      });
+      if (!response.ok) {
+        throw new Error("Sync failed");
       }
       router.refresh();
     } catch (error) {

@@ -4,23 +4,22 @@ import { useEffect, useRef } from "react";
 
 type AutoSyncOnMountProps = {
   enabled?: boolean;
-  syncAction: () => Promise<void>;
 };
 
-export function AutoSyncOnMount({
-  enabled = true,
-  syncAction,
-}: AutoSyncOnMountProps) {
+export function AutoSyncOnMount({ enabled = true }: AutoSyncOnMountProps) {
   const hasSyncedRef = useRef(false);
 
   useEffect(() => {
     if (enabled && !hasSyncedRef.current) {
       hasSyncedRef.current = true;
-      syncAction().catch((error) => {
+      // Call the sync API endpoint
+      fetch("/api/sync-calendars", {
+        method: "POST",
+      }).catch((error) => {
         console.error("Auto-sync failed:", error);
       });
     }
-  }, [enabled, syncAction]);
+  }, [enabled]);
 
   return null;
 }
