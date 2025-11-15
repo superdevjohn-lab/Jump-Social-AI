@@ -26,9 +26,9 @@ import {
 import { formatAttendeeList } from "@/lib/meeting-utils";
 
 type PageProps = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 const platformLabels: Record<MeetingPlatform, string> = {
@@ -158,13 +158,14 @@ async function publishSocialPostAction(formData: FormData) {
 }
 
 export default async function MeetingDetailPage({ params }: PageProps) {
+  const { id } = await params;
   const session = await auth();
   if (!session?.user) {
     redirect("/");
   }
 
   const meeting = await prisma.meeting.findUnique({
-    where: { id: params.id, userId: session.user.id },
+    where: { id, userId: session.user.id },
     include: {
       transcript: true,
       socialPosts: {

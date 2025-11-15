@@ -122,26 +122,37 @@ export default async function DashboardPage({
   }
 
   const [meetings, googleAccountCount, accountRows] = await Promise.all([
-    prisma.meeting.findMany({
-      select: upcomingSelect as any,
-      where,
-      orderBy: {
-        startTime: "asc",
-      },
-      take: 25,
-    }) as Promise<UpcomingMeetingRow[]>,
+    prisma.meeting
+      .findMany({
+        select: upcomingSelect,
+        where,
+        orderBy: {
+          startTime: "asc",
+        },
+        take: 25,
+      })
+      .then((rows) => rows as UpcomingMeetingRow[]),
     prisma.account.count({
       where: { userId: session.user.id, provider: "google" },
     }),
-    prisma.meeting.findMany({
-      where: { userId: session.user.id },
-      select: { sourceAccountEmail: true } as any,
-    }),
+    prisma.meeting
+      .findMany({
+        where: { userId: session.user.id },
+        select: { sourceAccountEmail: true },
+      })
+      .then(
+        (rows) =>
+          rows as Array<{
+            sourceAccountEmail: string | null;
+          }>,
+      ),
   ]);
 
   const accountOptions = Array.from(
     new Set(
-      accountRows.map((row) => row.sourceAccountEmail ?? "__primary"),
+      accountRows.map(
+        (row) => row.sourceAccountEmail ?? "__primary",
+      ),
     ),
   );
 

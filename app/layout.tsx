@@ -6,13 +6,17 @@ import { SiteHeader } from "@/components/site-header";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
-  weight: "variable",
+  weight: ["100","200","300","400","500","600","700","800","900"],
+  display: "swap",
+  adjustFontFallback: false
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
-  weight: "variable",
+  weight: ["100","200","300","400","500","600","700","800","900"],
+  display: "swap",
+  adjustFontFallback: false
 });
 
 export const metadata: Metadata = {
