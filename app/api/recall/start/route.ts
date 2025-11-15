@@ -4,10 +4,9 @@ import { revalidatePath } from "next/cache";
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import {
-  createRecallBot,
-  stopRecallBot,
-} from "@/lib/recall";
+import { MeetingStatus } from "@prisma/client";
+
+import { createRecallBot, stopRecallBot } from "@/lib/recall";
 
 const bodySchema = z.object({
   meetingId: z.string(),
@@ -68,7 +67,10 @@ export async function POST(request: Request) {
       data: {
         notetakerEnabled: true,
         recallBotId: bot.id,
-        recallStatus: bot.status ?? "scheduled",
+        status: MeetingStatus.UPCOMING,
+        recallRecordingId: null,
+        recallTranscriptId: null,
+        recallStatus: "bot.created",
       },
     });
   } else if (!enabled && meeting.recallBotId) {
@@ -78,6 +80,9 @@ export async function POST(request: Request) {
       data: {
         notetakerEnabled: false,
         recallBotId: null,
+        status: MeetingStatus.UPCOMING,
+        recallRecordingId: null,
+        recallTranscriptId: null,
         recallStatus: "cancelled",
       },
     });
@@ -86,6 +91,9 @@ export async function POST(request: Request) {
       where: { id: meeting.id },
       data: {
         notetakerEnabled: false,
+        status: MeetingStatus.UPCOMING,
+        recallRecordingId: null,
+        recallTranscriptId: null,
       },
     });
   }

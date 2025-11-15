@@ -340,7 +340,7 @@ export default async function MeetingDetailPage({ params }: PageProps) {
                 <p className="text-sm font-medium">Generate new post</p>
                 {automations.length ? (
                   <div className="flex flex-wrap gap-3">
-                    {automations.map((automation) => (
+                    {automations.map((automation: any) => (
                       <form
                         key={automation.id}
                         action={generateSocialPostAction}
@@ -378,7 +378,7 @@ export default async function MeetingDetailPage({ params }: PageProps) {
 
               {meeting.socialPosts.length ? (
                 <div className="space-y-4">
-                  {meeting.socialPosts.map((post) => (
+                  {meeting.socialPosts.map((post: any) => (
                     <div
                       key={post.id}
                       className="rounded-lg border border-border p-4"

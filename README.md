@@ -10,7 +10,7 @@ App Router, Prisma, Supabase (Postgres), Tailwind, and shadcn/ui.
 - Prisma ORM targeting Supabase Postgres
 - NextAuth v5 (Google, LinkedIn, Facebook providers)
 - Google Calendar API via `googleapis`
-- Recall.ai bot creation + polling (`/api/recall/start`, `/api/recall/poll`)
+- Recall.ai bot creation + webhook-based transcription (`/api/recall/start`, `/api/recall/webhook`)
 - OpenAI (or fallback templates) for follow-up emails & social drafts
 
 ### Local setup
@@ -36,10 +36,15 @@ App Router, Prisma, Supabase (Postgres), Tailwind, and shadcn/ui.
    npm run dev
    ```
 
-### Cron / polling
+### Recall webhooks
 
-Hit `POST /api/recall/poll` every 2 minutes (e.g., via Vercel Cron). If you set
-`RECALL_POLL_SECRET`, include `Authorization: Bearer <secret>` in the request.
+- Configure Recall to POST `recording.done` and `transcript.done` events to
+  `https://YOUR_DOMAIN/api/recall/webhook`.
+- (Optional) Set `RECALL_WEBHOOK_SECRET` and provide it via the `x-recall-secret`
+  header (or `?secret=` query) so the webhook is authenticated.
+- Flow: create bot → webhook (`recording.done`) → app requests an async
+  transcript → webhook (`transcript.done`) → app downloads transcript + runs
+  automations. No polling required.
 
 ### Automation flow
 
@@ -69,7 +74,7 @@ Hit `POST /api/recall/poll` every 2 minutes (e.g., via Vercel Cron). If you set
    | `FACEBOOK_CLIENT_ID` / `FACEBOOK_CLIENT_SECRET` | Meta app with `pages_manage_posts` scope |
    | `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Optional if you expose Supabase client-side (currently unused but reserved) |
    | `RECALL_API_KEY` | Provided Recall.ai key |
-   | `RECALL_POLL_SECRET` | Any random string (used to secure the polling endpoint; optional but recommended) |
+   | `RECALL_WEBHOOK_SECRET` | Shared secret for `/api/recall/webhook` verification (optional but recommended) |
    | `OPENAI_API_KEY` | OpenAI key for GPT-powered copy (fallback template used if absent) |
 
 3. **Run migrations**
@@ -82,9 +87,10 @@ Hit `POST /api/recall/poll` every 2 minutes (e.g., via Vercel Cron). If you set
    - Facebook: `https://your-app.vercel.app/api/auth/callback/facebook`
    - Add the Vercel domain to each provider’s authorized origins.
 
-5. **Set up Recall polling**
-   - In Vercel → Settings → Cron Jobs, create a job hitting `POST https://your-app.vercel.app/api/recall/poll` every 2 minutes.
-   - If you set `RECALL_POLL_SECRET`, add header `Authorization: Bearer <secret>` via the Cron UI.
+5. **Set up Recall webhooks**
+   - In the Recall dashboard, point the webhook URL to `https://your-app.vercel.app/api/recall/webhook`.
+   - Add the same `RECALL_WEBHOOK_SECRET` you configured in Vercel so the route can validate requests.
+   - Once a meeting ends, Recall sends `recording.done` → we request an async transcript → Recall sends `transcript.done` → automations run automatically.
 
 6. **Deploy**
    - Push to the main branch (or trigger a Vercel deploy). Ensure `npm run build` succeeds in CI.

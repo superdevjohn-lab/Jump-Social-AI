@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { MeetingPlatform, Prisma } from "@prisma/client";
+import { MeetingPlatform, MeetingStatus, Prisma } from "@prisma/client";
+import { Info } from "lucide-react";
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { syncGoogleCalendarsForUser } from "@/lib/google";
+import { cn } from "@/lib/utils";
 import {
   Card,
   CardContent,
@@ -26,6 +28,18 @@ import { PendingButton } from "@/components/form/pending-button";
 import { NotetakerToggle } from "@/components/notetaker-toggle";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+const SUPPORTED_PLATFORMS = new Set<MeetingPlatform>([
+  MeetingPlatform.ZOOM,
+  MeetingPlatform.GOOGLE_MEET,
+  MeetingPlatform.MICROSOFT_TEAMS,
+]);
 
 type DashboardPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -34,21 +48,29 @@ type DashboardPageProps = {
 type UpcomingMeetingRow = {
   id: string;
   title: string;
+  description: string | null;
   startTime: Date;
+  endTime: Date;
   timezone: string | null;
   platform: MeetingPlatform;
+  conferenceUrl: string | null;
   notetakerEnabled: boolean;
+  recallStatus: string | null;
   sourceAccountEmail: string | null;
 };
 
 const upcomingSelect = {
   id: true,
   title: true,
+  description: true,
   startTime: true,
+  endTime: true,
   timezone: true,
   platform: true,
+  conferenceUrl: true,
   notetakerEnabled: true,
   sourceAccountEmail: true,
+  recallStatus: true,
 } as const;
 
 async function syncCalendarsAction() {
@@ -107,18 +129,31 @@ export default async function DashboardPage({
   }
 
   const accountParam = plainParams.account ?? "all";
+  const platformParam = plainParams.platform ?? "all";
   const viewParam = plainParams.view === "calendar" ? "calendar" : "list";
+
+  const now = new Date();
 
   const where: Prisma.MeetingWhereInput = {
     userId: session.user.id,
-    startTime: {
-      gte: new Date(),
-    },
+    OR: [
+      { endTime: { gte: now } },
+      { status: MeetingStatus.IN_PROGRESS },
+    ],
   };
 
   if (accountParam !== "all") {
     (where as any).sourceAccountEmail =
       accountParam === "__primary" ? null : accountParam;
+  }
+
+  if (
+    platformParam !== "all" &&
+    Object.values(MeetingPlatform).includes(
+      platformParam.toUpperCase() as MeetingPlatform,
+    )
+  ) {
+    where.platform = platformParam.toUpperCase() as MeetingPlatform;
   }
 
   const [meetings, googleAccountCount, accountRows] = await Promise.all([
@@ -148,13 +183,37 @@ export default async function DashboardPage({
       ),
   ]);
 
-  const accountOptions = Array.from(
-    new Set(
-      accountRows.map(
-        (row) => row.sourceAccountEmail ?? "__primary",
-      ),
-    ),
-  );
+  const primaryEmail = session.user.email?.toLowerCase() ?? null;
+  const accountOptionMap = new Map<
+    string,
+    {
+      value: string;
+      label: string;
+    }
+  >();
+  accountRows.forEach((row) => {
+    const original = row.sourceAccountEmail;
+    const normalized = original?.toLowerCase() ?? "__primary";
+    if (!original || (primaryEmail && normalized === primaryEmail)) {
+      if (!accountOptionMap.has("primary")) {
+        accountOptionMap.set("primary", {
+          value: original ?? "__primary",
+          label: "Primary login",
+        });
+      }
+      return;
+    }
+    if (!accountOptionMap.has(normalized)) {
+      accountOptionMap.set(normalized, { value: original, label: original });
+    }
+  });
+  if (!accountOptionMap.size) {
+    accountOptionMap.set("primary", {
+      value: "__primary",
+      label: "Primary login",
+    });
+  }
+  const accountOptions = Array.from(accountOptionMap.values());
 
   return (
     <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 px-6 py-12">
@@ -244,14 +303,27 @@ export default async function DashboardPage({
                   className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                 >
                   <option value="all">All accounts</option>
-                  <option value="__primary">Primary login</option>
-                  {accountOptions
-                    .filter((value) => value !== "__primary")
-                    .map((value) => (
-                      <option key={value} value={value}>
-                        {value}
-                      </option>
-                    ))}
+                  {accountOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="platform">Platform</Label>
+                <select
+                  id="platform"
+                  name="platform"
+                  defaultValue={platformParam}
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="all">All platforms</option>
+                  {Object.values(MeetingPlatform).map((platform) => (
+                    <option key={platform} value={platform}>
+                      {platformLabels[platform]}
+                    </option>
+                  ))}
                 </select>
               </div>
               <input type="hidden" name="view" value={viewParam} />
@@ -280,64 +352,71 @@ export default async function DashboardPage({
 
 function UpcomingTable({ meetings }: { meetings: UpcomingMeetingRow[] }) {
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Meeting</TableHead>
-          <TableHead>Google account</TableHead>
-          <TableHead>Start</TableHead>
-          <TableHead>Platform</TableHead>
-          <TableHead className="text-right">Notetaker enabled</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {meetings.map((meeting) => (
-          <TableRow key={meeting.id}>
-            <TableCell>
-              <div className="font-medium">{meeting.title}</div>
-              <p className="text-xs text-muted-foreground">
-                {meeting.timezone ?? "Local timezone"}
-              </p>
-            </TableCell>
-            <TableCell>
-              <div className="font-medium">
-                {meeting.sourceAccountEmail ?? "Primary login"}
-              </div>
-            </TableCell>
-            <TableCell>
-              {formatMeetingTime(meeting.startTime, meeting.timezone)}
-            </TableCell>
-            <TableCell>
-              <Badge className={platformStyles[meeting.platform]}>
-                {platformLabels[meeting.platform]}
-              </Badge>
-            </TableCell>
-            <TableCell className="text-right">
-              <NotetakerToggle
-                meetingId={meeting.id}
-                enabled={meeting.notetakerEnabled}
-              />
-            </TableCell>
+    <TooltipProvider>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Meeting</TableHead>
+            <TableHead>Google account</TableHead>
+            <TableHead>Start</TableHead>
+            <TableHead>Platform</TableHead>
+            <TableHead className="text-right">Notetaker</TableHead>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {meetings.map((meeting) => (
+            <TableRow key={meeting.id}>
+              <TableCell>
+                <div className="font-medium">{meeting.title}</div>
+                {meeting.description && (
+                  <p className="text-xs text-muted-foreground line-clamp-2">
+                    {meeting.description}
+                  </p>
+                )}
+              </TableCell>
+              <TableCell>
+                <div className="font-medium">
+                  {meeting.sourceAccountEmail ?? "Primary login"}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {meeting.timezone ?? "Local timezone"}
+                </p>
+              </TableCell>
+              <TableCell>
+                {formatMeetingTime(meeting.startTime, meeting.timezone)}
+              </TableCell>
+              <TableCell>
+                <Badge className={platformStyles[meeting.platform]}>
+                  {platformLabels[meeting.platform]}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-right">
+                <NotetakerAction meeting={meeting} />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TooltipProvider>
   );
 }
 
 function UpcomingCalendar({ meetings }: { meetings: UpcomingMeetingRow[] }) {
   const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const startDay = startOfMonth.getDay();
-  const gridStart = new Date(startOfMonth);
-  gridStart.setDate(startOfMonth.getDate() - startDay);
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay());
 
-  const days: Date[] = [];
-  for (let i = 0; i < 42; i += 1) {
-    const day = new Date(gridStart);
-    day.setDate(gridStart.getDate() + i);
-    days.push(day);
-  }
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const day = new Date(startOfWeek);
+    day.setDate(startOfWeek.getDate() + index);
+    return day;
+  });
+
+  const startHour = 6;
+  const endHour = 20;
+  const hours = Array.from({ length: endHour - startHour + 1 }, (_, index) =>
+    startHour + index,
+  );
 
   const meetingsByDay = new Map<string, UpcomingMeetingRow[]>();
   meetings.forEach((meeting) => {
@@ -350,46 +429,158 @@ function UpcomingCalendar({ meetings }: { meetings: UpcomingMeetingRow[] }) {
     }
   });
 
+  const totalMinutes = (endHour - startHour) * 60;
+
   return (
-    <div className="grid grid-cols-7 gap-2">
-      {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-        <div
-          key={day}
-          className="text-center text-sm font-semibold text-muted-foreground"
-        >
-          {day}
-        </div>
-      ))}
-      {days.map((day) => {
-        const key = day.toISOString().slice(0, 10);
-        const dayMeetings = meetingsByDay.get(key) ?? [];
-        const isCurrentMonth = day.getMonth() === now.getMonth();
-        return (
-          <div
-            key={key}
-            className={`min-h-[120px] rounded-lg border p-2 ${
-              isCurrentMonth ? "bg-background" : "bg-muted/40 text-muted-foreground"
-            }`}
-          >
-            <p className="text-right text-xs font-semibold">{day.getDate()}</p>
-            <div className="mt-2 space-y-1">
-              {dayMeetings.map((meeting) => (
-                <div key={meeting.id} className="rounded-md bg-primary/10 p-2">
-                  <p className="text-xs font-medium">{meeting.title}</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {new Intl.DateTimeFormat("en-US", {
-                      hour: "numeric",
-                      minute: "2-digit",
-                    }).format(meeting.startTime)}{" "}
-                    · {meeting.sourceAccountEmail ?? "Primary"}
-                  </p>
+    <TooltipProvider>
+      <div className="overflow-auto rounded-lg border">
+        <div className="min-w-[900px]">
+          <div className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] text-xs">
+            <div />
+            {days.map((day) => (
+              <div key={day.toISOString()} className="px-2 py-3 text-center font-semibold">
+                {day.toLocaleDateString(undefined, {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </div>
+            ))}
+            <div className="flex flex-col text-muted-foreground">
+              {hours.map((hour) => (
+                <div key={hour} className="h-16 border-b px-1 text-right">
+                  {hour % 12 === 0 ? 12 : hour % 12}
+                  {hour < 12 ? "a" : "p"}
                 </div>
               ))}
             </div>
+            {days.map((day) => {
+              const key = day.toISOString().slice(0, 10);
+              const dayMeetings = meetingsByDay.get(key) ?? [];
+              return (
+                <div key={key} className="relative border-l">
+                  {hours.map((hour, index) => (
+                    <div
+                      key={`${key}-grid-${hour}`}
+                      className={cn(
+                        "h-16 border-b border-border/60",
+                        index === hours.length - 1 && "border-0",
+                      )}
+                    />
+                  ))}
+                  {dayMeetings.map((meeting) => {
+                    const meetingStart = new Date(meeting.startTime);
+                    const meetingEnd = new Date(meeting.endTime);
+                    const startMinutes =
+                      (meetingStart.getHours() * 60 + meetingStart.getMinutes()) -
+                      startHour * 60;
+                    const endMinutes =
+                      (meetingEnd.getHours() * 60 + meetingEnd.getMinutes()) -
+                      startHour * 60;
+                    if (endMinutes <= 0 || startMinutes >= totalMinutes) {
+                      return null;
+                    }
+                    const clampedStart = Math.max(0, startMinutes);
+                    const duration = Math.max(
+                      40,
+                      Math.min(totalMinutes - clampedStart, endMinutes - startMinutes),
+                    );
+                    return (
+                      <div
+                        key={meeting.id}
+                        className="absolute left-1 right-1 rounded-md bg-primary/10 p-2 text-xs shadow-sm"
+                        style={{
+                          top: `${clampedStart}px`,
+                          height: `${duration}px`,
+                        }}
+                      >
+                        <p className="font-medium">{meeting.title}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {new Intl.DateTimeFormat("en-US", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                          }).format(meeting.startTime)}{" "}
+                          · {meeting.sourceAccountEmail ?? "Primary"}
+                        </p>
+                        <div className="mt-1 flex items-center justify-between">
+                          <Badge className="text-[10px]">
+                            {meeting.platform.toLowerCase()}
+                          </Badge>
+                          <NotetakerAction meeting={meeting} compact />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
-        );
-      })}
-    </div>
+        </div>
+      </div>
+    </TooltipProvider>
+  );
+}
+
+function NotetakerAction({
+  meeting,
+  compact = false,
+}: {
+  meeting: UpcomingMeetingRow;
+  compact?: boolean;
+}) {
+  const supported =
+    SUPPORTED_PLATFORMS.has(meeting.platform) && Boolean(meeting.conferenceUrl);
+  if (compact) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className={cn(
+              "cursor-default text-[10px] font-medium",
+              supported ? "text-foreground" : "text-muted-foreground",
+            )}
+          >
+            {supported
+              ? meeting.notetakerEnabled
+                ? "Notetaker on"
+                : "Available"
+              : "Unavailable"}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>
+          {supported
+            ? "Toggle from the list view"
+            : meeting.platform === MeetingPlatform.OTHER
+              ? "Not supported for this meeting platform"
+              : "No meeting link available"}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  if (supported) {
+    return (
+      <NotetakerToggle
+        meetingId={meeting.id}
+        enabled={meeting.notetakerEnabled}
+      />
+    );
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Info
+          aria-label="Not available for this meeting"
+          className="mx-auto h-4 w-4 text-muted-foreground"
+        />
+      </TooltipTrigger>
+      <TooltipContent>
+        {meeting.platform === MeetingPlatform.OTHER
+          ? "Not supported for this meeting platform"
+          : "No meeting link available"}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

@@ -472,16 +472,6 @@ export default async function SettingsPage() {
                             {automation.prompt}
                           </p>
                         </div>
-                        {automationForModal.example && (
-                          <div className="mt-3 rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-                            <p className="font-medium text-foreground">
-                              Example
-                            </p>
-                            <p className="whitespace-pre-wrap">
-                              {automationForModal.example}
-                            </p>
-                          </div>
-                        )}
                       </div>
                     );
                   })}

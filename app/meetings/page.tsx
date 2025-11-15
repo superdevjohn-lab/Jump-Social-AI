@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { MeetingPlatform, Prisma } from "@prisma/client";
+import { MeetingPlatform, MeetingStatus, Prisma } from "@prisma/client";
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -96,9 +96,15 @@ export default async function MeetingsPage({
   const platformParam = plainParams.platform ?? "all";
   const viewParam = plainParams.view === "calendar" ? "calendar" : "list";
 
+  const now = new Date();
+
   const where: Prisma.MeetingWhereInput = {
     userId: session.user.id,
-    status: "COMPLETED",
+    OR: [
+      { endTime: { lt: now } },
+      { status: MeetingStatus.COMPLETED },
+      { status: MeetingStatus.CANCELLED },
+    ],
   };
 
   if (accountParam !== "all") {
@@ -130,15 +136,37 @@ export default async function MeetingsPage({
     }),
   ]);
 
-  const accountOptions = Array.from(
-    new Set(
-      accountRowsRaw.map(
-        (row) =>
-          (row as { sourceAccountEmail?: string | null }).sourceAccountEmail ??
-          "__primary",
-      ),
-    ),
-  );
+  const primaryEmail = session.user.email?.toLowerCase() ?? null;
+  const accountOptionMap = new Map<
+    string,
+    {
+      value: string;
+      label: string;
+    }
+  >();
+  accountRowsRaw.forEach((row) => {
+    const original = (row as { sourceAccountEmail?: string | null }).sourceAccountEmail;
+    const normalized = original?.toLowerCase() ?? "__primary";
+    if (!original || (primaryEmail && normalized === primaryEmail)) {
+      if (!accountOptionMap.has("primary")) {
+        accountOptionMap.set("primary", {
+          value: original ?? "__primary",
+          label: "Primary login",
+        });
+      }
+      return;
+    }
+    if (!accountOptionMap.has(normalized)) {
+      accountOptionMap.set(normalized, { value: original, label: original });
+    }
+  });
+  if (!accountOptionMap.size) {
+    accountOptionMap.set("primary", {
+      value: "__primary",
+      label: "Primary login",
+    });
+  }
+  const accountOptions = Array.from(accountOptionMap.values());
 
   return (
     <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 px-6 py-12">
@@ -205,14 +233,11 @@ export default async function MeetingsPage({
                   className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                 >
                   <option value="all">All accounts</option>
-                  <option value="__primary">Primary login</option>
-                  {accountOptions
-                    .filter((value) => value !== "__primary")
-                    .map((value) => (
-                      <option key={value} value={value}>
-                        {value}
-                      </option>
-                    ))}
+                  {accountOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="grid gap-2">

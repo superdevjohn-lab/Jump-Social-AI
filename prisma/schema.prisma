@@ -140,6 +140,8 @@ model Meeting {
   notetakerEnabled  Boolean         @default(false)
   recallBotId       String?
   recallStatus      String?
+  recallRecordingId String?
+  recallTranscriptId String?
   status            MeetingStatus   @default(UPCOMING)
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt

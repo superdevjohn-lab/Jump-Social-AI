@@ -1,19 +1,6 @@
-import { MeetingStatus, type Meeting } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
-import { runMeetingAutomations } from "@/lib/automations";
+import type { Meeting } from "@prisma/client";
 
-const RECALL_BASE_URL = "https://api.recall.ai/api/v1";
-
-type RecallBotResponse = {
-  id: string;
-  status?: string;
-  start_time?: string;
-  end_time?: string;
-  meeting_url?: string;
-  transcript?: {
-    text: string;
-  };
-};
+const RECALL_BASE_URL = "https://api.recall.ai/v1";
 
 async function recallRequest(
   path: string,
@@ -63,113 +50,51 @@ export async function createRecallBot({
     leave_time: meeting.endTime.toISOString(),
     bot_name: `Jump Notetaker • ${meeting.title}`,
     language: "en",
-    transcription_options: {
-      provider: "default",
+    metadata: {
+      meetingId: meeting.id,
+      userId: meeting.userId,
     },
   };
 
-  const bot = (await recallRequest("/meeting-bots/", {
+  const bot = await recallRequest("/bot/create/", {
     method: "POST",
     body: JSON.stringify(payload),
-  })) as RecallBotResponse;
+  });
 
   return bot;
 }
 
 export async function stopRecallBot(botId: string) {
-  await recallRequest(`/meeting-bots/${botId}/`, {
+  await recallRequest(`/bot/${botId}/`, {
     method: "DELETE",
   });
 }
 
-export async function fetchRecallBot(botId: string) {
-  const bot = (await recallRequest(`/meeting-bots/${botId}/`, {
-    method: "GET",
-  })) as RecallBotResponse;
-  return bot;
+export async function requestTranscript(recordingId: string) {
+  const response = await recallRequest("/recording/create_transcript/create/", {
+    method: "POST",
+    body: JSON.stringify({ recording_id: recordingId }),
+  });
+  return response?.transcript?.id as string | undefined;
 }
 
-export async function fetchRecallTranscript(botId: string) {
-  const transcript = (await recallRequest(
-    `/meeting-bots/${botId}/transcript/`,
-    {
-      method: "GET",
-    },
-  )) as { text: string };
-
-  return transcript;
-}
-
-function isBotComplete(bot: RecallBotResponse) {
-  const status = bot.status?.toLowerCase();
-  return (
-    status === "completed" ||
-    status === "call_ended" ||
-    status === "media_ready" ||
-    status === "transcript_ready"
-  );
-}
-
-export async function pollRecallBots() {
-  if (!process.env.RECALL_API_KEY) {
-    throw new Error("Missing RECALL_API_KEY");
-  }
-
-  const activeMeetings = await prisma.meeting.findMany({
-    where: {
-      recallBotId: {
-        not: null,
-      },
-      recallStatus: {
-        notIn: ["completed", "cancelled"],
-      },
-    },
-    include: {
-      transcript: true,
-    },
+export async function downloadTranscript(transcriptId: string) {
+  const meta = await recallRequest("/transcript/retrieve/", {
+    method: "POST",
+    body: JSON.stringify({ transcript_id: transcriptId }),
   });
 
-  let processed = 0;
-
-  for (const meeting of activeMeetings) {
-    if (!meeting.recallBotId) continue;
-
-    try {
-      const bot = await fetchRecallBot(meeting.recallBotId);
-      const complete = isBotComplete(bot);
-
-      await prisma.meeting.update({
-        where: { id: meeting.id },
-        data: {
-          recallStatus: bot.status ?? meeting.recallStatus,
-          status: complete ? MeetingStatus.COMPLETED : meeting.status,
-        },
-      });
-
-      if (complete) {
-        const transcript = await fetchRecallTranscript(meeting.recallBotId);
-
-        await prisma.meetingTranscript.upsert({
-          where: { meetingId: meeting.id },
-          create: {
-            meetingId: meeting.id,
-            rawText: transcript.text ?? "",
-            summary: meeting.transcript?.summary,
-          },
-          update: {
-            rawText: transcript.text ?? "",
-          },
-        });
-
-        await runMeetingAutomations(meeting.id);
-      }
-
-      processed += 1;
-    } catch (error) {
-      console.error("[recall] poll error", error);
-    }
+  const downloadUrl: string | undefined = meta?.data?.download_url;
+  if (!downloadUrl) {
+    throw new Error("Recall transcript response missing download_url");
   }
 
-  return { processed };
+  const download = await fetch(downloadUrl);
+  if (!download.ok) {
+    throw new Error("Unable to download transcript payload");
+  }
+
+  const text = await download.text();
+  return { text };
 }
 
