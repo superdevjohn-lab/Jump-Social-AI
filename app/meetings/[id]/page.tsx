@@ -32,7 +32,7 @@ import {
 } from "@/lib/meeting-utils";
 import { PlatformLogo } from "@/lib/platform-utils";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, RefreshCw } from "lucide-react";
 import { EditableSocialPost } from "@/components/editable-social-post";
 
 type PageProps = {
@@ -430,13 +430,17 @@ export default async function MeetingDetailPage({ params }: PageProps) {
                     rows={10}
                     value={meeting.transcript.followUpEmail}
                   />
-                  <div className="flex gap-2">
+                  <div className="flex items-center justify-between">
                     <CopyButton text={meeting.transcript.followUpEmail}>
                       Copy email
                     </CopyButton>
                     <form action={generateFollowUpAction}>
                       <input type="hidden" name="meetingId" value={meeting.id} />
-                      <PendingButton variant="ghost" size="sm">
+                      <PendingButton
+                        size="sm"
+                        className="bg-emerald-600 text-white hover:bg-emerald-700"
+                      >
+                        <RefreshCw className="mr-2 h-4 w-4" />
                         Regenerate
                       </PendingButton>
                     </form>
@@ -545,7 +549,7 @@ export default async function MeetingDetailPage({ params }: PageProps) {
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  No social drafts yet. Generate one using an automation above.
+                  No social drafts yet. Base prompt posts for LinkedIn and Facebook are automatically generated when the transcript is ready. You can also generate custom posts using automations above.
                 </p>
               )}
             </CardContent>

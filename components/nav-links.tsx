@@ -7,7 +7,8 @@ import { cn } from "@/lib/utils";
 export function NavLinks() {
   const pathname = usePathname();
   
-  const isDashboard = pathname === "/dashboard" || pathname === "/";
+  // Only highlight if on /dashboard, not on home page (/)
+  const isDashboard = pathname === "/dashboard";
   const isMeetings = pathname?.startsWith("/meetings");
 
   return (

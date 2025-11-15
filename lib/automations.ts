@@ -3,7 +3,6 @@ import { SocialPostStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatAttendeeList } from "@/lib/meeting-utils";
 import { generateFollowUpEmail, generateSocialPost } from "@/lib/ai";
-import { publishSocialPost } from "@/lib/social";
 
 export async function runMeetingAutomations(meetingId: string) {
   const meeting = await prisma.meeting.findUnique({
@@ -34,49 +33,38 @@ export async function runMeetingAutomations(meetingId: string) {
     });
   }
 
-  const automations = await prisma.automation.findMany({
-    where: {
-      userId: meeting.userId,
-      enabled: true,
-    },
-  });
-
-  for (const automation of automations) {
-    const existing = meeting.socialPosts.find(
-      (post) => post.automationId === automation.id,
+  // Generate base prompt posts for LinkedIn and Facebook (if not already exist)
+  // These are created automatically when transcript is ready
+  // Automation-based posts are NOT generated automatically - user must click "Generate new post"
+  const platforms = ["LINKEDIN", "FACEBOOK"] as const;
+  for (const platform of platforms) {
+    const existingBasePost = meeting.socialPosts.find(
+      (post) => post.platform === platform && !post.automationId,
     );
-    if (existing) continue;
+    if (existingBasePost) continue;
 
     const content = await generateSocialPost({
       meetingTitle: meeting.title,
       attendees,
       transcriptText: meeting.transcript.rawText,
-      platform: automation.platform,
-      customPrompt: automation.prompt,
+      platform,
+      // No customPrompt - use base prompt
     });
 
-    const newPost = await prisma.socialPost.create({
+    await prisma.socialPost.create({
       data: {
         userId: meeting.userId,
         meetingId: meeting.id,
-        automationId: automation.id,
-        platform: automation.platform,
+        automationId: null, // Base prompt post, not from automation
+        platform,
         content,
         status: SocialPostStatus.DRAFT,
       },
     });
-
-    if (automation.autoPost) {
-      try {
-        await publishSocialPost(newPost.id);
-      } catch (error) {
-        await prisma.socialPost.update({
-          where: { id: newPost.id },
-          data: { status: SocialPostStatus.FAILED },
-        });
-        console.error("[automation] autopost failed", error);
-      }
-    }
   }
+
+  // Note: Automation-based posts are NOT generated automatically
+  // Users must manually click "Generate new post" button in the UI
+  // which calls generateSocialPostAction in app/meetings/[id]/page.tsx
 }
 

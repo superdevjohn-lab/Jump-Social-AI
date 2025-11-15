@@ -57,18 +57,20 @@ export async function POST(request: Request) {
     if (meeting.user.settings) {
       switch (meeting.platform) {
         case MeetingPlatform.ZOOM:
-          leadTime = meeting.user.settings.zoomLeadTimeMinutes ?? 10;
+          leadTime = meeting.user.settings?.zoomLeadTimeMinutes ?? 10;
           break;
         case MeetingPlatform.GOOGLE_MEET:
-          leadTime = meeting.user.settings.googleMeetLeadTimeMinutes ?? 0;
+          leadTime = meeting.user.settings?.googleMeetLeadTimeMinutes ?? 0;
           break;
         case MeetingPlatform.MICROSOFT_TEAMS:
-          leadTime = meeting.user.settings.teamsLeadTimeMinutes ?? 10;
+          leadTime = meeting.user.settings?.teamsLeadTimeMinutes ?? 10;
           break;
         default:
           leadTime = meeting.user.settings.botLeadTimeMinutes ?? 5;
       }
     }
+
+    console.log("leadTime", leadTime);
 
     const bot = await createRecallBot({
       meeting,

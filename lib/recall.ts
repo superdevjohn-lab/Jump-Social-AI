@@ -52,6 +52,10 @@ export async function createRecallBot({
     meeting.startTime.getTime() - leadTimeMinutes * 60 * 1000,
   ).toISOString();
 
+  console.log("meeting.start|Time", meeting.startTime, meeting.startTime.getTime());
+  console.log("leadTimeMinues",leadTimeMinutes);
+  console.log("join Time", joinTime);
+
   // Calculate meeting duration in seconds
   const meetingDurationSeconds = Math.ceil(
     (meeting.endTime.getTime() - meeting.startTime.getTime()) / 1000,
@@ -129,6 +133,8 @@ export async function createRecallBot({
       recording_permission_denied_timeout: 30, // 30 seconds if permission denied
     },
   };
+
+  console.log("Bot payload", payload);
 
   const bot = await recallRequest("/bot/", {
     method: "POST",

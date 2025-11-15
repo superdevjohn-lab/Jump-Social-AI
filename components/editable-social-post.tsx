@@ -7,8 +7,17 @@ import { CopyButton } from "@/components/copy-button";
 import { PendingButton } from "@/components/form/pending-button";
 import { Badge } from "@/components/ui/badge";
 import { SocialPostStatus, SocialPlatform } from "@prisma/client";
-import { Trash2 } from "lucide-react";
+import { Trash2, Pencil, Send } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Props = {
   post: {
@@ -43,6 +52,7 @@ export function EditableSocialPost({
   const [content, setContent] = useState(post.content);
   const [isPending, startTransition] = useTransition();
   const [isEditing, setIsEditing] = useState(false);
+  const [showConnectDialog, setShowConnectDialog] = useState(false);
 
   const handleSave = async () => {
     startTransition(async () => {
@@ -129,8 +139,9 @@ export function EditableSocialPost({
               size="sm"
               onClick={() => setIsEditing(true)}
               disabled={isPending}
+              className="text-muted-foreground hover:text-foreground"
             >
-              Edit
+              <Pencil className="h-4 w-4" />
             </Button>
             <form
               action={(formData) => {
@@ -191,38 +202,72 @@ export function EditableSocialPost({
       )}
 
       {!isEditing && (
-        <div className="mt-4 flex gap-2">
+        <div className="mt-4 flex items-center justify-between">
           <CopyButton text={post.content} size="sm" />
-          {hasLinkedAccount ? (
-            post.status !== "POSTED" && (
-              <form
-                action={(formData) => {
-                  startTransition(async () => {
-                    await onPublish(formData);
-                  });
-                }}
-              >
-                <input type="hidden" name="postId" value={post.id} />
-                <input type="hidden" name="meetingId" value={meetingId} />
-                <PendingButton
-                  size="sm"
-                  disabled={isPending}
-                  variant={post.status === "FAILED" ? "destructive" : "default"}
-                >
-                  {post.status === "FAILED" ? "Retry post" : "Post"}
-                </PendingButton>
-              </form>
-            )
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              asChild
-              disabled={isPending}
-            >
-              <a href="/settings">Connect {post.platform === SocialPlatform.LINKEDIN ? "LinkedIn" : "Facebook"}</a>
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {post.status !== "POSTED" && (
+              <>
+                {hasLinkedAccount ? (
+                  <form
+                    action={(formData) => {
+                      startTransition(async () => {
+                        await onPublish(formData);
+                      });
+                    }}
+                  >
+                    <input type="hidden" name="postId" value={post.id} />
+                    <input type="hidden" name="meetingId" value={meetingId} />
+                    <PendingButton
+                      disabled={isPending}
+                      className={
+                        post.status === "FAILED"
+                          ? "bg-rose-600 text-white hover:bg-rose-700"
+                          : "bg-emerald-600 text-white hover:bg-emerald-700"
+                      }
+                    >
+                      <Send className="mr-2 h-4 w-4" />
+                      {post.status === "FAILED" ? "Retry post" : "Post"}
+                    </PendingButton>
+                  </form>
+                ) : (
+                  <>
+                    <Button
+                      variant={post.status === "FAILED" ? "destructive" : "default"}
+                      onClick={() => setShowConnectDialog(true)}
+                      disabled={isPending}
+                      className="bg-emerald-600 text-white hover:bg-emerald-700"
+                    >
+                      <Send className="mr-2 h-4 w-4" />
+                      {post.status === "FAILED" ? "Retry post" : "Post"}
+                    </Button>
+                    <Dialog open={showConnectDialog} onOpenChange={setShowConnectDialog}>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Connect {post.platform === SocialPlatform.LINKEDIN ? "LinkedIn" : "Facebook"} account</DialogTitle>
+                          <DialogDescription>
+                            To post to {post.platform === SocialPlatform.LINKEDIN ? "LinkedIn" : "Facebook"}, you need to connect your account first.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                          <Button
+                            variant="outline"
+                            onClick={() => setShowConnectDialog(false)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button asChild>
+                            <Link href="/settings">
+                              Connect {post.platform === SocialPlatform.LINKEDIN ? "LinkedIn" : "Facebook"}
+                            </Link>
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </>
+                )}
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

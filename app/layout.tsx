@@ -22,6 +22,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Jump Social AI",
   description: "Post-meeting social media content generator for advisors",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

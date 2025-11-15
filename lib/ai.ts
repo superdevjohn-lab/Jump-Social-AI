@@ -63,7 +63,7 @@ export async function generateFollowUpEmail({
   transcriptText,
   attendees = "the client",
 }: GenerateArgs) {
-  const prompt = `Draft a concise follow-up email (200 words max) from a financial advisor to ${attendees}. Summarize the key themes from this meeting titled "${meetingTitle}" and include a clear list of next steps. Transcript:\n${transcriptText}\nEmail:`;
+  const prompt = `Draft a concise follow-up email (200 words max) from Jump Social AI Advisor to ${attendees}. Summarize the key themes from this meeting titled "${meetingTitle}" and include a clear list of next steps. End the email with "From Jump Social AI Advisor" as the signature. Transcript:\n${transcriptText}\nEmail:`;
 
   const completion = await callOpenAI(prompt);
 
@@ -71,7 +71,7 @@ export async function generateFollowUpEmail({
     return completion.trim();
   }
 
-  return `Hi there,\n\nThank you for the thoughtful conversation during "${meetingTitle}". Here’s a quick recap of what we covered:\n\n• Reviewed portfolio positioning and risk tolerance\n• Confirmed the action items and follow-ups for next quarter\n• Scheduled our next touchpoint to revisit goals\n\nNext steps:\n1. We'll finalize the allocation changes discussed and share the updated plan.\n2. Please send over any new life updates that might affect the strategy.\n\nLet me know if any questions pop up. Looking forward to our next meeting.\n\nBest,\nYour Advisory Team`;
+  return `Hi there,\n\nThank you for the thoughtful conversation during "${meetingTitle}". Here's a quick recap of what we covered:\n\n• Reviewed portfolio positioning and risk tolerance\n• Confirmed the action items and follow-ups for next quarter\n• Scheduled our next touchpoint to revisit goals\n\nNext steps:\n1. We'll finalize the allocation changes discussed and share the updated plan.\n2. Please send over any new life updates that might affect the strategy.\n\nLet me know if any questions pop up. Looking forward to our next meeting.\n\nFrom Jump Social AI Advisor`;
 }
 
 export async function generateSocialPost({

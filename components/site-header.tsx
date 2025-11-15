@@ -13,7 +13,7 @@ export async function SiteHeader() {
   const defaultProvider = enabledProviders[0];
 
   return (
-    <header className="border-b border-border bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/60">
+    <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/60">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
         <a href="/" className="flex items-center gap-3 text-foreground">
           <LogoWordmark className="h-6 w-auto" />
