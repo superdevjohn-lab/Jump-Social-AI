@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { MeetingPlatform, MeetingStatus, Prisma } from "@prisma/client";
-import { Info, RefreshCw } from "lucide-react";
+import { Info, RefreshCw, ExternalLink } from "lucide-react";
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -407,8 +407,28 @@ function UpcomingTable({ meetings }: { meetings: UpcomingMeetingRow[] }) {
             <TableRow key={meeting.id}>
               <TableCell>
                 <div className="font-medium">{meeting.title}</div>
+                {meeting.conferenceUrl ? (
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-xs text-primary hover:text-primary/80"
+                    asChild
+                  >
+                    <a
+                      href={meeting.conferenceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      Join meeting
+                    </a>
+                  </Button>
+                ) : (
+                  <p className="text-xs text-muted-foreground">No link</p>
+                )}
                 {meeting.description && (
-                  <p className="text-xs text-muted-foreground line-clamp-2">
+                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
                     {meeting.description}
                   </p>
                 )}

@@ -24,6 +24,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { ExternalLink } from "lucide-react";
 import { AutoRefreshMeetings } from "@/components/auto-refresh-meetings";
 import { RefreshMeetingsButton } from "@/components/refresh-meetings-button";
 
@@ -342,9 +343,26 @@ function MeetingsTable({ meetings }: { meetings: MeetingRow[] }) {
           <TableRow key={meeting.id}>
             <TableCell>
               <div className="font-medium">{meeting.title}</div>
-              <p className="text-xs text-muted-foreground">
-                {meeting.conferenceUrl ?? "No link"}
-              </p>
+              {meeting.conferenceUrl ? (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-xs text-primary hover:text-primary/80"
+                  asChild
+                >
+                  <a
+                    href={meeting.conferenceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Join meeting
+                  </a>
+                </Button>
+              ) : (
+                <p className="text-xs text-muted-foreground">No link</p>
+              )}
             </TableCell>
             <TableCell>
               <div className="font-medium">
