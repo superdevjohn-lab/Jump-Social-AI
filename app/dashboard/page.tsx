@@ -427,11 +427,6 @@ function UpcomingTable({ meetings }: { meetings: UpcomingMeetingRow[] }) {
                 ) : (
                   <p className="text-xs text-muted-foreground">No link</p>
                 )}
-                {meeting.description && (
-                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                    {meeting.description}
-                  </p>
-                )}
               </TableCell>
               <TableCell>
                 <div className="font-medium">
