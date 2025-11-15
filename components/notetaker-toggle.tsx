@@ -3,6 +3,7 @@
 import { useOptimistic, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Info, Loader2 } from "lucide-react";
+import { MeetingStatus } from "@prisma/client";
 
 import { Switch } from "@/components/ui/switch";
 import {
@@ -16,6 +17,8 @@ type Props = {
   meetingId: string;
   enabled: boolean;
   recallStatus?: string | null;
+  endTime?: Date;
+  status?: MeetingStatus;
 };
 
 // Statuses where the bot is active and cannot be cancelled
@@ -25,7 +28,23 @@ const ACTIVE_BOT_STATUSES = new Set([
   "bot.in_call_recording",
 ]);
 
-export function NotetakerToggle({ meetingId, enabled, recallStatus }: Props) {
+// Statuses that indicate the meeting is completed
+const COMPLETED_RECALL_STATUSES = new Set([
+  "recording.done",
+  "transcript.done",
+  "bot.call_ended",
+  "bot.done",
+  "bot.call_ended_no_recording",
+  "bot.done_no_recording",
+]);
+
+export function NotetakerToggle({
+  meetingId,
+  enabled,
+  recallStatus,
+  endTime,
+  status,
+}: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [optimisticEnabled, setOptimisticEnabled] = useOptimistic(
@@ -33,10 +52,19 @@ export function NotetakerToggle({ meetingId, enabled, recallStatus }: Props) {
     (_, next: boolean) => next,
   );
 
+  const now = new Date();
+  const isMeetingEnded = endTime ? new Date(endTime) < now : false;
+  const isMeetingCompleted =
+    status === MeetingStatus.COMPLETED ||
+    (recallStatus && COMPLETED_RECALL_STATUSES.has(recallStatus));
   const isBotActive = recallStatus && ACTIVE_BOT_STATUSES.has(recallStatus);
-  const isDisabled = isPending || isBotActive;
+  const isDisabled =
+    isPending || isBotActive || isMeetingEnded || isMeetingCompleted;
 
   const getTooltipMessage = () => {
+    if (isMeetingCompleted || isMeetingEnded) {
+      return "This meeting has ended and the notetaker cannot be modified.";
+    }
     if (isBotActive) {
       switch (recallStatus) {
         case "bot.joining_call":
@@ -90,16 +118,17 @@ export function NotetakerToggle({ meetingId, enabled, recallStatus }: Props) {
         {isPending && (
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         )}
-        {isBotActive && !isPending && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Info className="h-4 w-4 text-muted-foreground" />
-            </TooltipTrigger>
-            <TooltipContent>
-              <p className="max-w-xs">{getTooltipMessage()}</p>
-            </TooltipContent>
-          </Tooltip>
-        )}
+        {(isBotActive || isMeetingCompleted || isMeetingEnded) &&
+          !isPending && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-4 w-4 text-muted-foreground" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="max-w-xs">{getTooltipMessage()}</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
       </div>
     </TooltipProvider>
   );

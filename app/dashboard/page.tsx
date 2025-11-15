@@ -63,6 +63,7 @@ type UpcomingMeetingRow = {
   notetakerEnabled: boolean;
   recallStatus: string | null;
   sourceAccountEmail: string | null;
+  status: MeetingStatus;
 };
 
 const upcomingSelect = {
@@ -77,6 +78,7 @@ const upcomingSelect = {
   notetakerEnabled: true,
   sourceAccountEmail: true,
   recallStatus: true,
+  status: true,
 } as const;
 
 async function syncCalendarsAction() {
@@ -157,15 +159,12 @@ export default async function DashboardPage({
   const where: Prisma.MeetingWhereInput = {
     userId: session.user.id,
     status: { not: MeetingStatus.COMPLETED },
-    OR: [
-      { endTime: { gte: now } },
-      { status: MeetingStatus.IN_PROGRESS },
-    ],
+    endTime: { gte: now }, // Only show meetings that haven't ended yet
     AND: [
       {
         OR: [
           { recallStatus: null },
-          { recallStatus: { notIn: ["recording.done", "transcript.done"] } },
+          { recallStatus: { notIn: ["recording.done", "transcript.done", "bot.call_ended", "bot.done", "bot.call_ended_no_recording", "bot.done_no_recording"] } },
         ],
       },
     ],
@@ -609,6 +608,8 @@ function NotetakerAction({
         meetingId={meeting.id}
         enabled={meeting.notetakerEnabled}
         recallStatus={meeting.recallStatus}
+        endTime={meeting.endTime}
+        status={meeting.status}
       />
     );
   }
