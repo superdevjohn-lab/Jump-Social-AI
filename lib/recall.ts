@@ -1,6 +1,8 @@
 import type { Meeting } from "@prisma/client";
+import { MeetingPlatform } from "@prisma/client";
 
-const RECALL_BASE_URL = "https://api.recall.ai/v1";
+const RECALL_BASE_URL =
+  process.env.RECALL_BASE_URL || "https://us-west-2.recall.ai/api/v1";
 
 async function recallRequest(
   path: string,
@@ -10,11 +12,17 @@ async function recallRequest(
     throw new Error("Missing RECALL_API_KEY");
   }
 
-  const response = await fetch(`${RECALL_BASE_URL}${path}`, {
+  const baseUrl = RECALL_BASE_URL.endsWith("/")
+    ? RECALL_BASE_URL.slice(0, -1)
+    : RECALL_BASE_URL;
+  const apiPath = path.startsWith("/") ? path : `/${path}`;
+
+  const response = await fetch(`${baseUrl}${apiPath}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Token ${process.env.RECALL_API_KEY}`,
+      accept: "application/json",
+      Authorization: process.env.RECALL_API_KEY,
       ...(init.headers || {}),
     },
   });
@@ -44,6 +52,47 @@ export async function createRecallBot({
     meeting.startTime.getTime() - leadTimeMinutes * 60 * 1000,
   ).toISOString();
 
+  // Calculate meeting duration in seconds
+  const meetingDurationSeconds = Math.ceil(
+    (meeting.endTime.getTime() - meeting.startTime.getTime()) / 1000,
+  );
+
+  // Calculate time from join time to end time (including lead time)
+  const totalWaitTimeSeconds = Math.ceil(
+    (meeting.endTime.getTime() - new Date(joinTime).getTime()) / 1000,
+  );
+
+  // Platform-specific waiting room timeout limits (in seconds)
+  // These are platform-enforced maximums that override our settings
+  let platformLimit: number = Infinity;
+  switch (meeting.platform) {
+    case MeetingPlatform.GOOGLE_MEET:
+      platformLimit = 600; // 10 minutes
+      break;
+    case MeetingPlatform.MICROSOFT_TEAMS:
+      platformLimit = 1800; // 30 minutes
+      break;
+    case MeetingPlatform.ZOOM:
+      platformLimit = Infinity; // No limit
+      break;
+    default:
+      platformLimit = Infinity;
+  }
+
+  // Set timeouts to be longer than the meeting duration to ensure bot stays until end
+  // Add buffer of 1 hour to account for delays
+  const silenceTimeout = Math.max(3600, meetingDurationSeconds + 3600);
+  const botDetectionTimeout = Math.max(3600, meetingDurationSeconds + 3600);
+  
+  // Use platform-specific limit or total wait time, whichever is smaller
+  const waitingRoomTimeout = Math.min(
+    totalWaitTimeSeconds,
+    platformLimit === Infinity ? totalWaitTimeSeconds : platformLimit,
+  );
+  
+  const nooneJoinedTimeout = totalWaitTimeSeconds; // Wait until scheduled end time
+  const notRecordingTimeout = Math.max(3600, meetingDurationSeconds + 3600);
+
   const payload = {
     meeting_url: meeting.conferenceUrl,
     join_time: joinTime,
@@ -54,13 +103,45 @@ export async function createRecallBot({
       meetingId: meeting.id,
       userId: meeting.userId,
     },
+    automatic_leave: {
+      silence_detection: {
+        timeout: silenceTimeout,
+        activate_after: 1200, // 20 minutes
+      },
+      bot_detection: {
+        using_participant_events: {
+          timeout: 600, // 10 minutes
+          activate_after: 1200, // 20 minutes
+        },
+        using_participant_names: {
+          matches: ["Jump Notetaker", "notetaker", "bot", "recall"], // Bot name patterns to detect
+          timeout: botDetectionTimeout,
+          activate_after: 1200, // 20 minutes
+        },
+      },
+      everyone_left: {
+        timeout: 2, // Leave immediately if everyone left
+        activate_after: 0,
+      },
+      waiting_room_timeout: waitingRoomTimeout, // Wait until scheduled end time
+      noone_joined_timeout: nooneJoinedTimeout, // Wait until scheduled end time
+      in_call_not_recording_timeout: notRecordingTimeout,
+      recording_permission_denied_timeout: 30, // 30 seconds if permission denied
+    },
   };
 
-  const bot = await recallRequest("/bot/create/", {
+  const bot = await recallRequest("/bot/", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 
+  return bot;
+}
+
+export async function fetchRecallBot(botId: string) {
+  const bot = await recallRequest(`/bot/${botId}/`, {
+    method: "GET",
+  });
   return bot;
 }
 
@@ -71,17 +152,22 @@ export async function stopRecallBot(botId: string) {
 }
 
 export async function requestTranscript(recordingId: string) {
-  const response = await recallRequest("/recording/create_transcript/create/", {
+  const response = await recallRequest(`/recording/${recordingId}/create_transcript/`, {
     method: "POST",
-    body: JSON.stringify({ recording_id: recordingId }),
+    body: JSON.stringify({
+      provider: {
+        recallai_async: {
+          language_code: "en_us",
+        },
+      },
+    }),
   });
   return response?.transcript?.id as string | undefined;
 }
 
 export async function downloadTranscript(transcriptId: string) {
-  const meta = await recallRequest("/transcript/retrieve/", {
-    method: "POST",
-    body: JSON.stringify({ transcript_id: transcriptId }),
+  const meta = await recallRequest(`/transcript/${transcriptId}/`, {
+    method: "GET",
   });
 
   const downloadUrl: string | undefined = meta?.data?.download_url;

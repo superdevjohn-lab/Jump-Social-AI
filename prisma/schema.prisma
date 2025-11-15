@@ -92,12 +92,15 @@ model VerificationToken {
 }
 
 model Setting {
-  id                  String  @id @default(cuid())
-  userId              String  @unique
-  botLeadTimeMinutes  Int     @default(5)
-  defaultAutomationId String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                      String  @id @default(cuid())
+  userId                  String  @unique
+  botLeadTimeMinutes      Int     @default(5)
+  zoomLeadTimeMinutes     Int?    @default(10)
+  googleMeetLeadTimeMinutes Int?  @default(0)
+  teamsLeadTimeMinutes   Int?    @default(10)
+  defaultAutomationId     String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   defaultAutomation Automation? @relation("default_automation", fields: [defaultAutomationId], references: [id])

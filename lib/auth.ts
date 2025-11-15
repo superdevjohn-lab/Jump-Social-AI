@@ -143,6 +143,35 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         },
         update: {},
       });
+
+      // Create default automations for LinkedIn and Facebook
+      const DEFAULT_SOCIAL_PROMPT =
+        "Draft a concise, compliant social media update (120-150 words) recapping the meeting. Keep the tone warm, forward-looking, and free of sensitive client details.";
+
+      await Promise.all([
+        prisma.automation.create({
+          data: {
+            userId: user.id,
+            name: "LinkedIn Post",
+            type: "Generate post",
+            platform: "LINKEDIN",
+            prompt: DEFAULT_SOCIAL_PROMPT,
+            enabled: true,
+            autoPost: false,
+          },
+        }),
+        prisma.automation.create({
+          data: {
+            userId: user.id,
+            name: "Facebook Post",
+            type: "Generate post",
+            platform: "FACEBOOK",
+            prompt: DEFAULT_SOCIAL_PROMPT,
+            enabled: true,
+            autoPost: false,
+          },
+        }),
+      ]);
     },
   },
 });

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { MeetingPlatform, MeetingStatus, Prisma } from "@prisma/client";
+import { formatRecallStatus } from "@/lib/meeting-utils";
+import { PlatformLogo } from "@/lib/platform-utils";
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -52,10 +54,31 @@ function formatDate(date: Date, timezone?: string | null) {
   }).format(date);
 }
 
+function formatTimeRange(
+  start: Date,
+  end: Date,
+  timezone?: string | null,
+): string {
+  const startStr = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: timezone ?? undefined,
+  }).format(start);
+  const endStr = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: timezone ?? undefined,
+  }).format(end);
+  return `${startStr} – ${endStr}`;
+}
+
 type MeetingRow = {
   id: string;
   title: string;
   startTime: Date;
+  endTime: Date;
   timezone: string | null;
   platform: MeetingPlatform;
   recallStatus: string | null;
@@ -68,6 +91,7 @@ const meetingSelect = {
   id: true,
   title: true,
   startTime: true,
+  endTime: true,
   timezone: true,
   platform: true,
   recallStatus: true,
@@ -104,6 +128,11 @@ export default async function MeetingsPage({
       { endTime: { lt: now } },
       { status: MeetingStatus.COMPLETED },
       { status: MeetingStatus.CANCELLED },
+      {
+        recallStatus: {
+          in: ["recording.done", "transcript.done"],
+        },
+      },
     ],
   };
 
@@ -315,14 +344,20 @@ function MeetingsTable({ meetings }: { meetings: MeetingRow[] }) {
                 {meeting.sourceCalendarTitle ?? "Google calendar"}
               </p>
             </TableCell>
-            <TableCell>{formatDate(meeting.startTime, meeting.timezone)}</TableCell>
             <TableCell>
-              <Badge className={platformStyles[meeting.platform]}>
-                {platformLabels[meeting.platform]}
-              </Badge>
+              {formatTimeRange(
+                meeting.startTime,
+                meeting.endTime,
+                meeting.timezone,
+              )}
             </TableCell>
             <TableCell>
-              <Badge variant="outline">{meeting.recallStatus ?? "—"}</Badge>
+              <PlatformLogo platform={meeting.platform} size={32} />
+            </TableCell>
+            <TableCell>
+              <Badge variant="outline">
+                {formatRecallStatus(meeting.recallStatus)}
+              </Badge>
             </TableCell>
             <TableCell className="text-right">
               <Button size="sm" asChild>
@@ -386,7 +421,10 @@ function MeetingsCalendar({ meetings }: { meetings: MeetingRow[] }) {
             <div className="mt-2 space-y-1">
               {dayMeetings.map((meeting) => (
                 <div key={meeting.id} className="rounded-md bg-primary/10 p-2">
-                  <p className="text-xs font-medium">{meeting.title}</p>
+                  <div className="flex items-center gap-2 mb-1">
+                    <PlatformLogo platform={meeting.platform} size={20} />
+                    <p className="text-xs font-medium">{meeting.title}</p>
+                  </div>
                   <p className="text-[11px] text-muted-foreground">
                     {new Intl.DateTimeFormat("en-US", {
                       hour: "numeric",

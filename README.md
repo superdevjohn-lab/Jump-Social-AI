@@ -74,6 +74,7 @@ App Router, Prisma, Supabase (Postgres), Tailwind, and shadcn/ui.
    | `FACEBOOK_CLIENT_ID` / `FACEBOOK_CLIENT_SECRET` | Meta app with `pages_manage_posts` scope |
    | `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Optional if you expose Supabase client-side (currently unused but reserved) |
    | `RECALL_API_KEY` | Provided Recall.ai key |
+   | `RECALL_BASE_URL` | Recall.ai API base URL (default: `https://us-west-2.recall.ai/api/v1`) |
    | `RECALL_WEBHOOK_SECRET` | Shared secret for `/api/recall/webhook` verification (optional but recommended) |
    | `OPENAI_API_KEY` | OpenAI key for GPT-powered copy (fallback template used if absent) |
 

@@ -9,38 +9,53 @@ async function callOpenAI(prompt: string) {
     return null;
   }
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-      temperature: 0.45,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an assistant that writes polished financial advisor communications. Keep tone warm, professional, and compliant.",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-    }),
-  });
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-  if (!response.ok) {
-    const error = await response.text();
-    console.error("[openai] request failed", error);
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+        temperature: 0.45,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are an assistant that writes polished financial advisor communications. Keep tone warm, professional, and compliant.",
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error("[openai] request failed", error);
+      return null;
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    return content as string | null;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      console.error("[openai] request timeout after 30 seconds");
+    } else {
+      console.error("[openai] request error", error);
+    }
     return null;
   }
-
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
-  return content as string | null;
 }
 
 export async function generateFollowUpEmail({

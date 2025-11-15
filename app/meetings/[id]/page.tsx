@@ -23,7 +23,17 @@ import {
   SocialPlatform,
   SocialPostStatus,
 } from "@prisma/client";
-import { formatAttendeeList } from "@/lib/meeting-utils";
+import {
+  formatAttendeeList,
+  getAttendees,
+  formatRecallStatus,
+  formatTranscript,
+  getFormattedTranscriptText,
+} from "@/lib/meeting-utils";
+import { PlatformLogo } from "@/lib/platform-utils";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import { EditableSocialPost } from "@/components/editable-social-post";
 
 type PageProps = {
   params: Promise<{
@@ -137,6 +147,38 @@ async function generateSocialPostAction(formData: FormData) {
   revalidatePath(`/meetings/${meetingId}`);
 }
 
+async function updateSocialPostAction(formData: FormData) {
+  "use server";
+  const postId = formData.get("postId") as string;
+  const content = formData.get("content") as string;
+  const meetingId = formData.get("meetingId") as string;
+
+  const session = await auth();
+  if (!session?.user) redirect("/");
+
+  await prisma.socialPost.update({
+    where: { id: postId, userId: session.user.id },
+    data: { content },
+  });
+
+  revalidatePath(`/meetings/${meetingId}`);
+}
+
+async function deleteSocialPostAction(formData: FormData) {
+  "use server";
+  const postId = formData.get("postId") as string;
+  const meetingId = formData.get("meetingId") as string;
+
+  const session = await auth();
+  if (!session?.user) redirect("/");
+
+  await prisma.socialPost.delete({
+    where: { id: postId, userId: session.user.id },
+  });
+
+  revalidatePath(`/meetings/${meetingId}`);
+}
+
 async function publishSocialPostAction(formData: FormData) {
   "use server";
   const postId = formData.get("postId") as string;
@@ -175,26 +217,43 @@ export default async function MeetingDetailPage({ params }: PageProps) {
     },
   });
 
-  const automations = await prisma.automation.findMany({
-    where: { userId: session.user.id },
-  });
+  const [automations, accounts] = await Promise.all([
+    prisma.automation.findMany({
+      where: { userId: session.user.id },
+    }),
+    prisma.account.findMany({
+      where: { userId: session.user.id },
+    }),
+  ]);
 
   if (!meeting) {
     notFound();
   }
 
+  const linkedinAccount = accounts.find((acc) => acc.provider === "linkedin");
+  const facebookAccount = accounts.find((acc) => acc.provider === "facebook");
+
   return (
     <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-8 px-6 py-12">
       <div>
+        <div className="mb-4">
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/meetings">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to meetings
+            </Link>
+          </Button>
+        </div>
         <p className="text-sm uppercase tracking-tight text-primary">
           Meeting detail
         </p>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-semibold">{meeting.title}</h1>
-            <p className="text-muted-foreground">
-              {formatDateTime(meeting.startTime, meeting.timezone)} ·{" "}
-              {platformLabels[meeting.platform]}
+            <p className="text-muted-foreground flex items-center gap-3">
+              {formatDateTime(meeting.startTime, meeting.timezone)} –{" "}
+              {formatDateTime(meeting.endTime, meeting.timezone)}
+              <PlatformLogo platform={meeting.platform} size={32} />
             </p>
           </div>
           {meeting.conferenceUrl && (
@@ -216,16 +275,28 @@ export default async function MeetingDetailPage({ params }: PageProps) {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div>
-            <p className="text-sm font-medium text-muted-foreground">
+            <p className="mb-2 text-sm font-medium text-muted-foreground">
               Attendees
             </p>
-            <p>{formatAttendeeList(meeting.attendees)}</p>
+            <div className="flex flex-wrap gap-2">
+              {getAttendees(meeting.attendees).length > 0 ? (
+                getAttendees(meeting.attendees).map((attendee, idx) => (
+                  <Badge key={idx} variant="secondary">
+                    {attendee.displayName || attendee.email || "Guest"}
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-sm text-muted-foreground">Not listed</span>
+              )}
+            </div>
           </div>
           <div>
             <p className="text-sm font-medium text-muted-foreground">
               Recall status
             </p>
-            <Badge variant="outline">{meeting.recallStatus ?? "—"}</Badge>
+            <Badge variant="outline">
+              {formatRecallStatus(meeting.recallStatus)}
+            </Badge>
           </div>
           <div>
             <p className="text-sm font-medium text-muted-foreground">
@@ -263,12 +334,72 @@ export default async function MeetingDetailPage({ params }: PageProps) {
             <CardContent className="space-y-4">
               {meeting.transcript?.rawText ? (
                 <>
-                  <div className="rounded-lg border bg-muted/40 p-4 text-sm leading-relaxed text-muted-foreground">
-                    <pre className="whitespace-pre-wrap">
-                      {meeting.transcript.rawText}
-                    </pre>
+                  <div className="rounded-lg border bg-background p-6">
+                    <div className="space-y-6">
+                      {(() => {
+                        const segments = formatTranscript(meeting.transcript.rawText).split("\n\n");
+                        const participantColors = new Map<string, string>();
+                        const colorPalette = [
+                          "border-blue-500",
+                          "border-emerald-500",
+                          "border-purple-500",
+                          "border-amber-500",
+                          "border-rose-500",
+                          "border-cyan-500",
+                          "border-pink-500",
+                          "border-indigo-500",
+                        ];
+                        let colorIndex = 0;
+
+                        return segments.map((segment, idx) => {
+                          const lines = segment.split("\n");
+                          if (lines.length >= 3) {
+                            const [name, time, ...textLines] = lines;
+                            
+                            // Assign a color to each unique participant
+                            if (!participantColors.has(name)) {
+                              participantColors.set(
+                                name,
+                                colorPalette[colorIndex % colorPalette.length],
+                              );
+                              colorIndex++;
+                            }
+                            const borderColor = participantColors.get(name) || "border-primary/20";
+
+                            return (
+                              <div
+                                key={idx}
+                                className={`border-l-4 ${borderColor} pl-4 space-y-2`}
+                              >
+                                <div className="flex items-baseline gap-3">
+                                  <div className="font-semibold text-base text-foreground">
+                                    {name}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground font-mono">
+                                    {time}
+                                  </div>
+                                </div>
+                                <div className="text-sm text-foreground/90 leading-relaxed">
+                                  {textLines.join(" ")}
+                                </div>
+                              </div>
+                            );
+                          }
+                          return (
+                            <div
+                              key={idx}
+                              className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap"
+                            >
+                              {segment}
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
                   </div>
-                  <CopyButton text={meeting.transcript.rawText}>
+                  <CopyButton
+                    text={getFormattedTranscriptText(meeting.transcript.rawText)}
+                  >
                     Copy transcript
                   </CopyButton>
                 </>
@@ -363,7 +494,8 @@ export default async function MeetingDetailPage({ params }: PageProps) {
                           {automation.platform === SocialPlatform.LINKEDIN
                             ? "LinkedIn"
                             : "Facebook"}{" "}
-                          • {automation.name}
+                          • {(automation as any).type || "Generate post"} •{" "}
+                          {automation.name}
                         </PendingButton>
                       </form>
                     ))}
@@ -378,76 +510,38 @@ export default async function MeetingDetailPage({ params }: PageProps) {
 
               {meeting.socialPosts.length ? (
                 <div className="space-y-4">
-                  {meeting.socialPosts.map((post: any) => (
-                    <div
-                      key={post.id}
-                      className="rounded-lg border border-border p-4"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="capitalize">
-                              {post.platform.toLowerCase()}
-                            </Badge>
-                            <Badge className={socialStatusStyles[post.status]}>
-                              {post.status.toLowerCase()}
-                            </Badge>
-                          </div>
-                          {post.automation?.name && (
-                            <p className="text-xs text-muted-foreground">
-                              Automation: {post.automation.name}
-                            </p>
-                          )}
-                          {post.postedAt && (
-                            <p className="text-xs text-muted-foreground">
-                              Posted {formatDateTime(post.postedAt, meeting.timezone)}
-                              {post.externalPostId && (
-                                <>
-                                  {" "}
-                                  ·{" "}
-                                  <a
-                                    href={
-                                      post.platform === SocialPlatform.LINKEDIN
-                                        ? `https://www.linkedin.com/feed/update/${post.externalPostId}`
-                                        : `https://www.facebook.com/${post.externalPostId}`
-                                    }
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="underline"
-                                  >
-                                    View live
-                                  </a>
-                                </>
-                              )}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex gap-2">
-                          <CopyButton text={post.content} />
-                          {post.status !== "POSTED" && (
-                            <form action={publishSocialPostAction}>
-                              <input
-                                type="hidden"
-                                name="postId"
-                                value={post.id}
+                  {meeting.socialPosts.map((post: any) => {
+                    const hasLinkedAccount =
+                      (post.platform === SocialPlatform.LINKEDIN &&
+                        linkedinAccount) ||
+                      (post.platform === SocialPlatform.FACEBOOK &&
+                        facebookAccount);
+                    return (
+                              <EditableSocialPost
+                                key={post.id}
+                                post={{
+                                  id: post.id,
+                                  content: post.content,
+                                  platform: post.platform,
+                                  status: post.status,
+                                  automation: post.automation
+                                    ? {
+                                        name: post.automation.name,
+                                        type: (post.automation as any).type,
+                                      }
+                                    : null,
+                                  postedAt: post.postedAt,
+                                  externalPostId: post.externalPostId,
+                                }}
+                                meetingId={meeting.id}
+                                hasLinkedAccount={!!hasLinkedAccount}
+                                onUpdate={updateSocialPostAction}
+                                onPublish={publishSocialPostAction}
+                                onDelete={deleteSocialPostAction}
+                                timezone={meeting.timezone}
                               />
-                              <input
-                                type="hidden"
-                                name="meetingId"
-                                value={meeting.id}
-                              />
-                              <PendingButton size="sm">
-                                {post.status === "FAILED" ? "Retry" : "Post"}
-                              </PendingButton>
-                            </form>
-                          )}
-                        </div>
-                      </div>
-                      <p className="mt-3 whitespace-pre-wrap text-sm">
-                        {post.content}
-                      </p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">

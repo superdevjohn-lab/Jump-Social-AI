@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { PendingButton } from "@/components/form/pending-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PlatformLeadTimeInput } from "@/components/platform-lead-time-input";
 
 async function updateLeadTimeAction(formData: FormData) {
   "use server";
@@ -32,11 +33,23 @@ async function updateLeadTimeAction(formData: FormData) {
     redirect("/");
   }
 
-  const minutes = Number(formData.get("minutes") ?? 5);
+  const zoomMinutes = Number(formData.get("zoomMinutes") ?? 10);
+  const googleMeetMinutes = Number(formData.get("googleMeetMinutes") ?? 0);
+  const teamsMinutes = Number(formData.get("teamsMinutes") ?? 10);
+
   await prisma.setting.upsert({
     where: { userId: session.user.id },
-    create: { userId: session.user.id, botLeadTimeMinutes: minutes },
-    update: { botLeadTimeMinutes: minutes },
+    create: {
+      userId: session.user.id,
+      zoomLeadTimeMinutes: zoomMinutes,
+      googleMeetLeadTimeMinutes: googleMeetMinutes,
+      teamsLeadTimeMinutes: teamsMinutes,
+    },
+    update: {
+      zoomLeadTimeMinutes: zoomMinutes,
+      googleMeetLeadTimeMinutes: googleMeetMinutes,
+      teamsLeadTimeMinutes: teamsMinutes,
+    },
   });
 
   revalidatePath("/settings");
@@ -381,24 +394,43 @@ export default async function SettingsPage() {
             <CardHeader>
               <CardTitle>Recall.ai bot lead time</CardTitle>
               <CardDescription>
-                How many minutes before a meeting should the bot join?
+                How many minutes before a meeting should the bot join? Each platform has different maximum waiting room timeouts.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form action={updateLeadTimeAction} className="flex gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="minutes">Lead time (minutes)</Label>
-                  <Input
-                    type="number"
-                    name="minutes"
-                    id="minutes"
-                    min={1}
-                    max={30}
-                    defaultValue={settings?.botLeadTimeMinutes ?? 5}
-                    className="w-40"
+              <form action={updateLeadTimeAction} className="space-y-6">
+                <div className="space-y-4">
+                  <PlatformLeadTimeInput
+                    platform="googleMeet"
+                    label="Google Meet"
+                    maxValue={5}
+                    defaultValue={settings?.googleMeetLeadTimeMinutes ?? 0}
+                    platformTimeout={10}
+                    name="googleMeetMinutes"
+                    id="googleMeetMinutes"
+                  />
+
+                  <PlatformLeadTimeInput
+                    platform="teams"
+                    label="Microsoft Teams"
+                    maxValue={25}
+                    defaultValue={settings?.teamsLeadTimeMinutes ?? 10}
+                    platformTimeout={30}
+                    name="teamsMinutes"
+                    id="teamsMinutes"
+                  />
+
+                  <PlatformLeadTimeInput
+                    platform="zoom"
+                    label="Zoom"
+                    maxValue={1000}
+                    defaultValue={settings?.zoomLeadTimeMinutes ?? 10}
+                    platformTimeout={Infinity}
+                    name="zoomMinutes"
+                    id="zoomMinutes"
                   />
                 </div>
-                <PendingButton className="self-end">Save</PendingButton>
+                <PendingButton className="self-start">Save</PendingButton>
               </form>
             </CardContent>
           </Card>

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { MeetingStatus } from "@prisma/client";
+import { MeetingStatus, MeetingPlatform } from "@prisma/client";
 
 import { createRecallBot, stopRecallBot } from "@/lib/recall";
 
@@ -52,10 +52,23 @@ export async function POST(request: Request) {
       );
     }
 
-    const leadTime =
-      meeting.user.settings?.botLeadTimeMinutes !== undefined
-        ? meeting.user.settings.botLeadTimeMinutes
-        : 5;
+    // Get platform-specific lead time
+    let leadTime = 5; // Default fallback
+    if (meeting.user.settings) {
+      switch (meeting.platform) {
+        case MeetingPlatform.ZOOM:
+          leadTime = meeting.user.settings.zoomLeadTimeMinutes ?? 10;
+          break;
+        case MeetingPlatform.GOOGLE_MEET:
+          leadTime = meeting.user.settings.googleMeetLeadTimeMinutes ?? 0;
+          break;
+        case MeetingPlatform.MICROSOFT_TEAMS:
+          leadTime = meeting.user.settings.teamsLeadTimeMinutes ?? 10;
+          break;
+        default:
+          leadTime = meeting.user.settings.botLeadTimeMinutes ?? 5;
+      }
+    }
 
     const bot = await createRecallBot({
       meeting,

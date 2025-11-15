@@ -12,6 +12,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { getEnabledProviders } from "@/lib/providers";
 import { startSignIn } from "@/lib/server-actions/auth-actions";
+import { MeetingPlatform } from "@prisma/client";
+import { PlatformLogo } from "@/lib/platform-utils";
 
 export default async function Home() {
   const session = await auth();
@@ -62,6 +64,32 @@ export default async function Home() {
               <a href="#features">Discover features</a>
             </Button>
           )}
+        </div>
+      </section>
+
+      <section className="space-y-6">
+        <div className="space-y-2 text-center">
+          <Badge variant="secondary">Supported platforms</Badge>
+          <h2 className="text-2xl font-semibold">
+            Works with your favorite meeting tools
+          </h2>
+          <p className="text-muted-foreground">
+            The notetaker automatically joins meetings on these platforms
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center justify-center gap-12">
+          <div className="flex flex-col items-center gap-3">
+            <PlatformLogo platform={MeetingPlatform.ZOOM} size={80} />
+            <span className="text-base font-medium">Zoom</span>
+          </div>
+          <div className="flex flex-col items-center gap-3">
+            <PlatformLogo platform={MeetingPlatform.GOOGLE_MEET} size={80} />
+            <span className="text-base font-medium">Google Meet</span>
+          </div>
+          <div className="flex flex-col items-center gap-3">
+            <PlatformLogo platform={MeetingPlatform.MICROSOFT_TEAMS} size={80} />
+            <span className="text-base font-medium">Microsoft Teams</span>
+          </div>
         </div>
       </section>
 

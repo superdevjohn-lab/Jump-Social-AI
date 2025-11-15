@@ -34,6 +34,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { formatRecallStatus } from "@/lib/meeting-utils";
+import { PlatformLogo } from "@/lib/platform-utils";
 
 const SUPPORTED_PLATFORMS = new Set<MeetingPlatform>([
   MeetingPlatform.ZOOM,
@@ -111,6 +113,20 @@ function formatMeetingTime(date: Date, timezone?: string | null) {
   }).format(date);
 }
 
+function formatTimeRange(
+  start: Date,
+  end: Date,
+  timezone?: string | null,
+): string {
+  const startStr = formatMeetingTime(start, timezone);
+  const endStr = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: timezone ?? undefined,
+  }).format(end);
+  return `${startStr} – ${endStr}`;
+}
+
 export default async function DashboardPage({
   searchParams,
 }: DashboardPageProps) {
@@ -136,9 +152,18 @@ export default async function DashboardPage({
 
   const where: Prisma.MeetingWhereInput = {
     userId: session.user.id,
+    status: { not: MeetingStatus.COMPLETED },
     OR: [
       { endTime: { gte: now } },
       { status: MeetingStatus.IN_PROGRESS },
+    ],
+    AND: [
+      {
+        OR: [
+          { recallStatus: null },
+          { recallStatus: { notIn: ["recording.done", "transcript.done"] } },
+        ],
+      },
     ],
   };
 
@@ -358,8 +383,9 @@ function UpcomingTable({ meetings }: { meetings: UpcomingMeetingRow[] }) {
           <TableRow>
             <TableHead>Meeting</TableHead>
             <TableHead>Google account</TableHead>
-            <TableHead>Start</TableHead>
+            <TableHead>Time</TableHead>
             <TableHead>Platform</TableHead>
+            <TableHead>Recall status</TableHead>
             <TableHead className="text-right">Notetaker</TableHead>
           </TableRow>
         </TableHeader>
@@ -383,11 +409,18 @@ function UpcomingTable({ meetings }: { meetings: UpcomingMeetingRow[] }) {
                 </p>
               </TableCell>
               <TableCell>
-                {formatMeetingTime(meeting.startTime, meeting.timezone)}
+                {formatTimeRange(
+                  meeting.startTime,
+                  meeting.endTime,
+                  meeting.timezone,
+                )}
               </TableCell>
               <TableCell>
-                <Badge className={platformStyles[meeting.platform]}>
-                  {platformLabels[meeting.platform]}
+                <PlatformLogo platform={meeting.platform} size={32} />
+              </TableCell>
+              <TableCell>
+                <Badge variant="outline">
+                  {formatRecallStatus(meeting.recallStatus)}
                 </Badge>
               </TableCell>
               <TableCell className="text-right">
@@ -502,12 +535,10 @@ function UpcomingCalendar({ meetings }: { meetings: UpcomingMeetingRow[] }) {
                           }).format(meeting.startTime)}{" "}
                           · {meeting.sourceAccountEmail ?? "Primary"}
                         </p>
-                        <div className="mt-1 flex items-center justify-between">
-                          <Badge className="text-[10px]">
-                            {meeting.platform.toLowerCase()}
-                          </Badge>
-                          <NotetakerAction meeting={meeting} compact />
-                        </div>
+                                <div className="mt-1 flex items-center justify-between">
+                                  <PlatformLogo platform={meeting.platform} size={20} />
+                                  <NotetakerAction meeting={meeting} compact />
+                                </div>
                       </div>
                     );
                   })}
@@ -547,13 +578,13 @@ function NotetakerAction({
               : "Unavailable"}
           </span>
         </TooltipTrigger>
-        <TooltipContent>
-          {supported
-            ? "Toggle from the list view"
-            : meeting.platform === MeetingPlatform.OTHER
-              ? "Not supported for this meeting platform"
-              : "No meeting link available"}
-        </TooltipContent>
+      <TooltipContent>
+        {supported
+          ? "Toggle from the list view"
+          : meeting.platform === MeetingPlatform.OTHER
+            ? "Notetaker is not supported for this meeting platform"
+            : "No meeting link available. Notetaker requires a Zoom, Google Meet, or Teams link."}
+      </TooltipContent>
       </Tooltip>
     );
   }
@@ -577,8 +608,8 @@ function NotetakerAction({
       </TooltipTrigger>
       <TooltipContent>
         {meeting.platform === MeetingPlatform.OTHER
-          ? "Not supported for this meeting platform"
-          : "No meeting link available"}
+          ? "Notetaker is not supported for this meeting platform"
+          : "No meeting link available. Notetaker requires a Zoom, Google Meet, or Teams link."}
       </TooltipContent>
     </Tooltip>
   );

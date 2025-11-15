@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { getEnabledProviders } from "@/lib/providers";
 import { LogoWordmark } from "@/components/logo-wordmark";
 import { startSignIn, startSignOut } from "@/lib/server-actions/auth-actions";
+import { NavLinks } from "@/components/nav-links";
 
 export async function SiteHeader() {
   const session = await auth();
@@ -25,18 +26,7 @@ export async function SiteHeader() {
             </span>
           </div>
         </a>
-        {session ? (
-          <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
-            <a href="/dashboard" className="hover:text-foreground">
-              Upcoming meetings
-            </a>
-            <a href="/meetings" className="hover:text-foreground">
-              Past meetings
-            </a>
-          </nav>
-        ) : (
-          <div />
-        )}
+        {session ? <NavLinks /> : <div />}
         <div className="flex items-center gap-3">
           {session ? (
             <>

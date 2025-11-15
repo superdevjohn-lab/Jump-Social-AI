@@ -131,13 +131,14 @@ export async function POST(request: Request) {
     }
 
     if (event === "transcript.done") {
+      const botId = payload.data?.bot?.id;
       const transcriptId = payload.data?.transcript?.id;
-      if (!transcriptId) {
+      if (!botId || !transcriptId) {
         return NextResponse.json({ ok: true });
       }
 
       const meeting = await prisma.meeting.findFirst({
-        where: { recallTranscriptId: transcriptId },
+        where: { recallBotId: botId },
         include: { transcript: true },
       });
 
@@ -163,6 +164,7 @@ export async function POST(request: Request) {
         data: {
           status: MeetingStatus.COMPLETED,
           recallStatus: "transcript.done",
+          recallTranscriptId: transcriptId,
         },
       });
 
