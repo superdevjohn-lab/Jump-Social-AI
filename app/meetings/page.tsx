@@ -24,6 +24,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { AutoRefreshMeetings } from "@/components/auto-refresh-meetings";
+import { RefreshMeetingsButton } from "@/components/refresh-meetings-button";
 
 type MeetingsPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -199,6 +201,11 @@ export default async function MeetingsPage({
 
   return (
     <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 px-6 py-12">
+      <AutoRefreshMeetings
+        autoSyncOnMount={false}
+        refreshInterval={30000}
+      />
+
       <div>
         <p className="text-sm uppercase tracking-tight text-primary">
           Past meetings
@@ -222,7 +229,9 @@ export default async function MeetingsPage({
                 transcript.
               </CardDescription>
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
+              <RefreshMeetingsButton />
+              <div className="flex gap-2">
               <Button
                 variant={viewParam === "list" ? "default" : "outline"}
                 asChild
@@ -249,6 +258,7 @@ export default async function MeetingsPage({
                   Calendar view
                 </Link>
               </Button>
+              </div>
             </div>
           </div>
           <div className="mt-4 rounded-lg border bg-muted/30 p-4">

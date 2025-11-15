@@ -216,6 +216,31 @@ export async function syncGoogleCalendarsForUser(userId: string) {
           const attendeesJson = (event.attendees ??
             []) as unknown as Prisma.InputJsonValue;
 
+          // Check if meeting already exists to preserve its status
+          const existingMeeting = await prisma.meeting.findUnique({
+            where: {
+              userId_externalEventId: {
+                userId,
+                externalEventId,
+              },
+            },
+            select: { status: true },
+          });
+
+          // Determine status: preserve existing status if meeting is in progress,
+          // otherwise update based on time
+          let meetingStatus: MeetingStatus;
+          if (existingMeeting?.status === MeetingStatus.IN_PROGRESS) {
+            // Preserve IN_PROGRESS status (bot is active)
+            meetingStatus = MeetingStatus.IN_PROGRESS;
+          } else {
+            // Update based on time for new meetings or completed/upcoming meetings
+            meetingStatus =
+              startTime.getTime() > Date.now()
+                ? MeetingStatus.UPCOMING
+                : MeetingStatus.COMPLETED;
+          }
+
           await prisma.meeting.upsert({
             where: {
               userId_externalEventId: {
@@ -241,10 +266,7 @@ export async function syncGoogleCalendarsForUser(userId: string) {
                 Intl.DateTimeFormat().resolvedOptions().timeZone,
               attendees: attendeesJson,
               notetakerEnabled: false,
-              status:
-                startTime.getTime() > Date.now()
-                  ? MeetingStatus.UPCOMING
-                  : MeetingStatus.COMPLETED,
+              status: meetingStatus,
             } as any,
             update: {
               title: event.summary ?? "Untitled meeting",
@@ -261,10 +283,9 @@ export async function syncGoogleCalendarsForUser(userId: string) {
               sourceAccountEmail: accountEmail,
               sourceCalendarId: cal.id,
               sourceCalendarTitle: cal.summary,
-              status:
-                startTime.getTime() > Date.now()
-                  ? MeetingStatus.UPCOMING
-                  : MeetingStatus.COMPLETED,
+              status: meetingStatus,
+              // Note: notetakerEnabled, recallBotId, recallStatus, etc. are NOT updated
+              // to preserve user settings and bot state
             } as any,
           });
 

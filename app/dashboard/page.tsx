@@ -36,6 +36,9 @@ import {
 } from "@/components/ui/tooltip";
 import { formatRecallStatus } from "@/lib/meeting-utils";
 import { PlatformLogo } from "@/lib/platform-utils";
+import { AutoRefreshMeetings } from "@/components/auto-refresh-meetings";
+import { RefreshMeetingsButton } from "@/components/refresh-meetings-button";
+import { AutoSyncOnMount } from "@/components/auto-sync-on-mount";
 
 const SUPPORTED_PLATFORMS = new Set<MeetingPlatform>([
   MeetingPlatform.ZOOM,
@@ -242,6 +245,14 @@ export default async function DashboardPage({
 
   return (
     <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 px-6 py-12">
+      <AutoSyncOnMount
+        enabled={googleAccountCount > 0}
+        syncAction={syncCalendarsAction}
+      />
+      <AutoRefreshMeetings
+        autoSyncOnMount={false}
+        refreshInterval={30000}
+      />
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-sm uppercase tracking-tight text-primary">
@@ -290,33 +301,40 @@ export default async function DashboardPage({
                 join.
               </CardDescription>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant={viewParam === "list" ? "default" : "outline"}
-                asChild
-              >
-                <Link
-                  href={{
-                    pathname: "/dashboard",
-                    query: { ...plainParams, view: "list" },
-                  }}
+            <div className="flex items-center gap-2">
+              <RefreshMeetingsButton
+                onSync={async () => {
+                  await syncCalendarsAction();
+                }}
+              />
+              <div className="flex gap-2">
+                <Button
+                  variant={viewParam === "list" ? "default" : "outline"}
+                  asChild
                 >
-                  List view
-                </Link>
-              </Button>
-              <Button
-                variant={viewParam === "calendar" ? "default" : "outline"}
-                asChild
-              >
-                <Link
-                  href={{
-                    pathname: "/dashboard",
-                    query: { ...plainParams, view: "calendar" },
-                  }}
+                  <Link
+                    href={{
+                      pathname: "/dashboard",
+                      query: { ...plainParams, view: "list" },
+                    }}
+                  >
+                    List view
+                  </Link>
+                </Button>
+                <Button
+                  variant={viewParam === "calendar" ? "default" : "outline"}
+                  asChild
                 >
-                  Calendar view
-                </Link>
-              </Button>
+                  <Link
+                    href={{
+                      pathname: "/dashboard",
+                      query: { ...plainParams, view: "calendar" },
+                    }}
+                  >
+                    Calendar view
+                  </Link>
+                </Button>
+              </div>
             </div>
           </div>
           <div className="mt-4 rounded-lg border bg-muted/40 p-4">
