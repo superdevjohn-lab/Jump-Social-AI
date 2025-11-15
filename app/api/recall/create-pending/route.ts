@@ -22,17 +22,21 @@ export async function GET(request: Request) {
   }
 
   const now = new Date();
+  // Add a 2-minute buffer to account for cron job interval (runs every 1 minute)
+  // This ensures we catch meetings whose join time has just passed
+  const bufferMinutes = 2;
+  const bufferTime = new Date(now.getTime() - bufferMinutes * 60 * 1000);
 
   // Find meetings that need bot creation
   // - notetakerEnabled = true
   // - recallBotId is null (bot not created yet)
   // - recallStatus is "bot.pending" or null
-  // - meeting hasn't started yet
+  // - startTime is in the future or within the buffer window (to account for cron interval)
   const pendingMeetings = await prisma.meeting.findMany({
     where: {
       notetakerEnabled: true,
       recallBotId: null,
-      startTime: { gt: now }, // Meeting hasn't started yet
+      startTime: { gte: bufferTime }, // Include meetings within the buffer window
       OR: [
         { recallStatus: "bot.pending" },
         { recallStatus: null },
@@ -72,30 +76,17 @@ export async function GET(request: Request) {
       }
     }
 
-    // Calculate join time
+    // Calculate join time (meeting start - lead time)
     const joinTime = new Date(
       meeting.startTime.getTime() - leadTime * 60 * 1000,
     );
-    const minutesUntilJoin = (joinTime.getTime() - now.getTime()) / (1000 * 60);
 
-    // Platform-specific bot creation windows
-    let maxCreationWindowMinutes: number;
-    switch (meeting.platform) {
-      case MeetingPlatform.GOOGLE_MEET:
-        maxCreationWindowMinutes = 15;
-        break;
-      case MeetingPlatform.MICROSOFT_TEAMS:
-        maxCreationWindowMinutes = 35;
-        break;
-      case MeetingPlatform.ZOOM:
-        maxCreationWindowMinutes = 60;
-        break;
-      default:
-        maxCreationWindowMinutes = 30;
-    }
+    // Decision logic: Only create bot when join time has arrived
+    // If join time has already passed (now >= joinTime) → Create immediately
+    // Otherwise → Skip (will be retried on next cron run)
+    const shouldCreateNow = now >= joinTime;
 
-    // Only create bot if we're within the creation window
-    if (minutesUntilJoin <= maxCreationWindowMinutes && minutesUntilJoin >= -5) {
+    if (shouldCreateNow) {
       try {
         const bot = await createRecallBot({
           meeting,

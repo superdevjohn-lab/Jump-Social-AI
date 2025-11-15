@@ -75,83 +75,78 @@ export async function POST(request: Request) {
       meeting.startTime.getTime() - leadTime * 60 * 1000,
     );
     const now = new Date();
-    const minutesUntilJoin = (joinTime.getTime() - now.getTime()) / (1000 * 60);
 
-    // Platform-specific bot creation windows
-    // We should create the bot close to join time to avoid waiting room timeouts
-    let maxCreationWindowMinutes: number;
-    switch (meeting.platform) {
-      case MeetingPlatform.GOOGLE_MEET:
-        // Google Meet: 10 min waiting room limit, create bot max 15 min before join
-        maxCreationWindowMinutes = 15;
-        break;
-      case MeetingPlatform.MICROSOFT_TEAMS:
-        // Teams: 30 min waiting room limit, create bot max 35 min before join
-        maxCreationWindowMinutes = 35;
-        break;
-      case MeetingPlatform.ZOOM:
-        // Zoom: No limit, but still reasonable to create within 1 hour
-        maxCreationWindowMinutes = 60;
-        break;
-      default:
-        maxCreationWindowMinutes = 30;
-    }
+    // Decision logic: Only create bot when join time has arrived
+    // If join time has already passed (now >= joinTime) → Create immediately
+    // Otherwise → Queue for cron job
+    const shouldCreateNow = now >= joinTime;
 
-    // If join time is too far in the future, mark as enabled but don't create bot yet
-    // A cron job will create it when it's time
-    if (minutesUntilJoin > maxCreationWindowMinutes) {
+    if (shouldCreateNow) {
+      // Create bot immediately - join time has passed
+      try {
+        const bot = await createRecallBot({
+          meeting,
+          leadTimeMinutes: leadTime,
+        });
+
+        await prisma.meeting.update({
+          where: { id: meeting.id },
+          data: {
+            notetakerEnabled: true,
+            recallBotId: bot.id,
+            recallStatus: "bot.created",
+            status: MeetingStatus.UPCOMING,
+            recallRecordingId: null,
+            recallTranscriptId: null,
+          },
+        });
+      } catch (error) {
+        // If creation fails, queue it for retry via cron
+        console.error(`[recall/start] Failed to create bot immediately, queuing:`, error);
+        await prisma.meeting.update({
+          where: { id: meeting.id },
+          data: {
+            notetakerEnabled: true,
+            recallStatus: "bot.pending",
+            status: MeetingStatus.UPCOMING,
+            recallBotId: null,
+          },
+        });
+      }
+    } else {
+      // Queue for cron job - too early to create
       await prisma.meeting.update({
         where: { id: meeting.id },
         data: {
           notetakerEnabled: true,
-          recallStatus: "bot.pending", // Mark as pending creation
+          recallStatus: "bot.pending",
           status: MeetingStatus.UPCOMING,
+          recallBotId: null,
         },
       });
-      return NextResponse.json({
-        success: true,
-        message: "Notetaker will be created closer to the meeting time",
-      });
+    }
+  } else {
+    // Disable notetaker
+    if (meeting.recallBotId) {
+      // Bot exists - stop it via Recall.ai API
+      try {
+        await stopRecallBot(meeting.recallBotId);
+      } catch (error) {
+        // Log error but continue with database update
+        console.error(`[recall/start] Failed to stop bot ${meeting.recallBotId}:`, error);
+      }
     }
 
-    // Create bot now if we're within the creation window
-    const bot = await createRecallBot({
-      meeting,
-      leadTimeMinutes: leadTime,
-    });
-
-    await prisma.meeting.update({
-      where: { id: meeting.id },
-      data: {
-        notetakerEnabled: true,
-        recallBotId: bot.id,
-        status: MeetingStatus.UPCOMING,
-        recallRecordingId: null,
-        recallTranscriptId: null,
-        recallStatus: "bot.created",
-      },
-    });
-  } else if (!enabled && meeting.recallBotId) {
-    await stopRecallBot(meeting.recallBotId);
+    // Update database to disable notetaker
     await prisma.meeting.update({
       where: { id: meeting.id },
       data: {
         notetakerEnabled: false,
-        recallBotId: null,
+        recallBotId: null, // Clear bot ID
+        recallStatus: meeting.recallBotId ? "cancelled" : null, // Only mark as cancelled if bot existed
+        // Don't clear recallRecordingId or recallTranscriptId if they exist
+        // They might be useful for historical data
         status: MeetingStatus.UPCOMING,
-        recallRecordingId: null,
-        recallTranscriptId: null,
-        recallStatus: "cancelled",
-      },
-    });
-  } else {
-    await prisma.meeting.update({
-      where: { id: meeting.id },
-      data: {
-        notetakerEnabled: false,
-        status: MeetingStatus.UPCOMING,
-        recallRecordingId: null,
-        recallTranscriptId: null,
       },
     });
   }

@@ -102,7 +102,32 @@ export async function POST(request: Request) {
         // Otherwise, keep status as UPCOMING (bot is waiting to join)
       }
       if (completedEvents.includes(event)) {
-        updateData.status = MeetingStatus.COMPLETED;
+        // Check if meeting has a transcript to determine correct status
+        const meetingWithTranscript = await prisma.meeting.findUnique({
+          where: { id: meetingId },
+          include: { transcript: true },
+        });
+
+        // Only mark as COMPLETED if there's a transcript
+        // Otherwise, keep status as IN_PROGRESS or set based on whether recording exists
+        if (meetingWithTranscript?.transcript) {
+          updateData.status = MeetingStatus.COMPLETED;
+        } else {
+          // Meeting ended but no transcript - check if recording exists
+          if (meetingWithTranscript?.recallRecordingId) {
+            // Recording exists but transcript not ready yet - keep as IN_PROGRESS
+            updateData.status = MeetingStatus.IN_PROGRESS;
+          } else {
+            // No recording at all - meeting ended without recording
+            updateData.status = MeetingStatus.COMPLETED;
+            // Update recallStatus to indicate no recording
+            if (event === "bot.call_ended") {
+              updateData.recallStatus = "bot.call_ended_no_recording";
+            } else if (event === "bot.done") {
+              updateData.recallStatus = "bot.done_no_recording";
+            }
+          }
+        }
       }
 
       await prisma.meeting.update({

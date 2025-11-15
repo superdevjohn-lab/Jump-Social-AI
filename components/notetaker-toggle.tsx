@@ -20,8 +20,8 @@ export function NotetakerToggle({ meetingId, enabled }: Props) {
   );
 
   const handleChange = (nextValue: boolean) => {
-    setOptimisticEnabled(nextValue);
     startTransition(async () => {
+      setOptimisticEnabled(nextValue);
       const response = await fetch("/api/recall/start", {
         method: "POST",
         headers: {

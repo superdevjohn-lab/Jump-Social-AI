@@ -34,6 +34,7 @@ import { PlatformLogo } from "@/lib/platform-utils";
 import Link from "next/link";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { EditableSocialPost } from "@/components/editable-social-post";
+import { RefreshButton } from "@/components/refresh-button";
 
 type PageProps = {
   params: Promise<{
@@ -434,28 +435,47 @@ export default async function MeetingDetailPage({ params }: PageProps) {
                     <CopyButton text={meeting.transcript.followUpEmail}>
                       Copy email
                     </CopyButton>
-                    <form action={generateFollowUpAction}>
-                      <input type="hidden" name="meetingId" value={meeting.id} />
-                      <PendingButton
+                    <div className="flex items-center gap-2">
+                      <RefreshButton
+                        explanation="It could take some time to generate the follow-up email. Please click refresh to check if it's ready."
                         size="sm"
-                        className="bg-emerald-600 text-white hover:bg-emerald-700"
-                      >
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                        Regenerate
-                      </PendingButton>
-                    </form>
+                        variant="outline"
+                      />
+                      <form action={generateFollowUpAction}>
+                        <input type="hidden" name="meetingId" value={meeting.id} />
+                        <PendingButton
+                          size="sm"
+                          className="bg-emerald-600 text-white hover:bg-emerald-700"
+                        >
+                          <RefreshCw className="mr-2 h-4 w-4" />
+                          Regenerate
+                        </PendingButton>
+                      </form>
+                    </div>
                   </div>
                 </>
               ) : (
-                <form action={generateFollowUpAction} className="space-y-3">
-                  <input type="hidden" name="meetingId" value={meeting.id} />
-                  <p className="text-sm text-muted-foreground">
-                    No follow-up email yet. Generate the first draft below.
-                  </p>
-                  <PendingButton disabled={!meeting.transcript?.rawText}>
-                    Generate follow-up email
-                  </PendingButton>
-                </form>
+                <div className="space-y-3">
+                  <form action={generateFollowUpAction} className="space-y-3">
+                    <input type="hidden" name="meetingId" value={meeting.id} />
+                    <p className="text-sm text-muted-foreground">
+                      No follow-up email yet. Generate the first draft below.
+                    </p>
+                    <PendingButton disabled={!meeting.transcript?.rawText}>
+                      Generate follow-up email
+                    </PendingButton>
+                  </form>
+                  <div className="flex items-center gap-2">
+                    <RefreshButton
+                      explanation="It could take some time to generate the follow-up email. Please click refresh to check if it's ready."
+                      size="sm"
+                      variant="outline"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      If generation is in progress, click refresh to check status.
+                    </p>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -546,11 +566,33 @@ export default async function MeetingDetailPage({ params }: PageProps) {
                               />
                     );
                   })}
+                  <div className="flex items-center gap-2 pt-2 border-t">
+                    <RefreshButton
+                      explanation="It could take some time to generate social posts. Please click refresh to check if new posts are ready."
+                      size="sm"
+                      variant="outline"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      If generation is in progress, click refresh to check for new posts.
+                    </p>
+                  </div>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">
-                  No social drafts yet. Base prompt posts for LinkedIn and Facebook are automatically generated when the transcript is ready. You can also generate custom posts using automations above.
-                </p>
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    No social drafts yet. Base prompt posts for LinkedIn and Facebook are automatically generated when the transcript is ready. You can also generate custom posts using automations above.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <RefreshButton
+                      explanation="It could take some time to generate social posts. Please click refresh to check if new posts are ready."
+                      size="sm"
+                      variant="outline"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      If generation is in progress, click refresh to check for new posts.
+                    </p>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>

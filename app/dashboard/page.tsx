@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { MeetingPlatform, MeetingStatus, Prisma } from "@prisma/client";
-import { Info } from "lucide-react";
+import { Info, RefreshCw } from "lucide-react";
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -257,10 +257,12 @@ export default async function DashboardPage({
         </div>
         <form action={syncCalendarsAction}>
           <PendingButton
-            size="lg"
+            size="sm"
             disabled={!googleAccountCount}
             pendingText="Syncing..."
+            className="bg-emerald-600 text-white hover:bg-emerald-700"
           >
+            <RefreshCw className="mr-2 h-4 w-4" />
             {googleAccountCount ? "Sync calendars" : "Connect Google first"}
           </PendingButton>
         </form>
