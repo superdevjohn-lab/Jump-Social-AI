@@ -70,8 +70,51 @@ export async function POST(request: Request) {
       }
     }
 
-    console.log("leadTime", leadTime);
+    // Calculate join time (meeting start - lead time)
+    const joinTime = new Date(
+      meeting.startTime.getTime() - leadTime * 60 * 1000,
+    );
+    const now = new Date();
+    const minutesUntilJoin = (joinTime.getTime() - now.getTime()) / (1000 * 60);
 
+    // Platform-specific bot creation windows
+    // We should create the bot close to join time to avoid waiting room timeouts
+    let maxCreationWindowMinutes: number;
+    switch (meeting.platform) {
+      case MeetingPlatform.GOOGLE_MEET:
+        // Google Meet: 10 min waiting room limit, create bot max 15 min before join
+        maxCreationWindowMinutes = 15;
+        break;
+      case MeetingPlatform.MICROSOFT_TEAMS:
+        // Teams: 30 min waiting room limit, create bot max 35 min before join
+        maxCreationWindowMinutes = 35;
+        break;
+      case MeetingPlatform.ZOOM:
+        // Zoom: No limit, but still reasonable to create within 1 hour
+        maxCreationWindowMinutes = 60;
+        break;
+      default:
+        maxCreationWindowMinutes = 30;
+    }
+
+    // If join time is too far in the future, mark as enabled but don't create bot yet
+    // A cron job will create it when it's time
+    if (minutesUntilJoin > maxCreationWindowMinutes) {
+      await prisma.meeting.update({
+        where: { id: meeting.id },
+        data: {
+          notetakerEnabled: true,
+          recallStatus: "bot.pending", // Mark as pending creation
+          status: MeetingStatus.UPCOMING,
+        },
+      });
+      return NextResponse.json({
+        success: true,
+        message: "Notetaker will be created closer to the meeting time",
+      });
+    }
+
+    // Create bot now if we're within the creation window
     const bot = await createRecallBot({
       meeting,
       leadTimeMinutes: leadTime,

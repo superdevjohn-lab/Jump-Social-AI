@@ -67,6 +67,19 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
+      // Get meeting to check if it has actually started
+      const meeting = await prisma.meeting.findUnique({
+        where: { id: meetingId },
+        select: { startTime: true },
+      });
+
+      if (!meeting) {
+        return NextResponse.json({ ok: true });
+      }
+
+      const now = new Date();
+      const hasMeetingStarted = now >= meeting.startTime;
+
       const inProgressEvents = [
         "bot.joining_call",
         "bot.in_waiting_room",
@@ -78,8 +91,15 @@ export async function POST(request: Request) {
         recallStatus: event,
         ...(botId ? { recallBotId: botId } : {}),
       };
+      
+      // Only set status to IN_PROGRESS if meeting has actually started
+      // "bot.joining_call" and "bot.in_waiting_room" can happen before meeting starts
       if (inProgressEvents.includes(event)) {
-        updateData.status = MeetingStatus.IN_PROGRESS;
+        if (hasMeetingStarted || event === "bot.in_call_recording") {
+          // Meeting has started OR bot is actually recording (definitely in progress)
+          updateData.status = MeetingStatus.IN_PROGRESS;
+        }
+        // Otherwise, keep status as UPCOMING (bot is waiting to join)
       }
       if (completedEvents.includes(event)) {
         updateData.status = MeetingStatus.COMPLETED;

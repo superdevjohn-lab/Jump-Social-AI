@@ -21,6 +21,8 @@ export function getAttendees(attendees: unknown): GoogleAttendee[] {
 export function formatRecallStatus(status: string | null | undefined): string {
   if (!status) return "Not started";
   const statusMap: Record<string, string> = {
+    "bot.pending": "Pending creation",
+    "bot.created": "Bot created",
     "bot.joining_call": "Joining call",
     "bot.in_waiting_room": "In waiting room",
     "bot.in_call_recording": "Recording",

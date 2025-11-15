@@ -1,6 +1,8 @@
 "use client";
 
 import { useOptimistic, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
 import { Switch } from "@/components/ui/switch";
 
@@ -10,6 +12,7 @@ type Props = {
 };
 
 export function NotetakerToggle({ meetingId, enabled }: Props) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [optimisticEnabled, setOptimisticEnabled] = useOptimistic(
     enabled,
@@ -33,17 +36,25 @@ export function NotetakerToggle({ meetingId, enabled }: Props) {
       if (!response.ok) {
         setOptimisticEnabled(enabled);
         console.error("Failed to update notetaker setting");
+      } else {
+        // Refresh the page data to reflect changes
+        router.refresh();
       }
     });
   };
 
   return (
-    <Switch
-      checked={optimisticEnabled}
-      onCheckedChange={handleChange}
-      disabled={isPending}
-      aria-label="Toggle notetaker"
-    />
+    <div className="flex items-center gap-2">
+      <Switch
+        checked={optimisticEnabled}
+        onCheckedChange={handleChange}
+        disabled={isPending}
+        aria-label="Toggle notetaker"
+      />
+      {isPending && (
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      )}
+    </div>
   );
 }
 

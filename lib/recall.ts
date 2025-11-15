@@ -52,10 +52,6 @@ export async function createRecallBot({
     meeting.startTime.getTime() - leadTimeMinutes * 60 * 1000,
   ).toISOString();
 
-  console.log("meeting.start|Time", meeting.startTime, meeting.startTime.getTime());
-  console.log("leadTimeMinues",leadTimeMinutes);
-  console.log("join Time", joinTime);
-
   // Calculate meeting duration in seconds
   const meetingDurationSeconds = Math.ceil(
     (meeting.endTime.getTime() - meeting.startTime.getTime()) / 1000,

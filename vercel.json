@@ -4,6 +4,12 @@
       "source": "/(.*)",
       "destination": "/"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/recall/create-pending",
+      "schedule": "* * * * *"
+    }
   ]
 }
 
