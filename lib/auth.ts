@@ -121,6 +121,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   providers,
   trustHost: true,
+  pages: {
+    signIn: "/",
+    error: "/",
+  },
   callbacks: {
     session: async ({ session, user }: { session: Session; user: User }) => {
       if (session.user && user.id) {

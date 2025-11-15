@@ -67,8 +67,8 @@ App Router, Prisma, Supabase (Postgres), Tailwind, and shadcn/ui.
    | Variable | Description |
    | --- | --- |
    | `DATABASE_URL`, `DIRECT_URL` | Supabase Postgres URLs |
-   | `NEXTAUTH_SECRET` | `openssl rand -hex 32` (must match locally & prod) |
-   | `NEXTAUTH_URL` | e.g. `https://your-app.vercel.app` |
+   | `AUTH_SECRET` | `openssl rand -hex 32` (must match locally & prod) |
+   | `AUTH_URL` | e.g. `https://your-app.vercel.app` (required for OAuth callbacks) |
    | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Cloud OAuth (include `https://your-app.vercel.app/api/auth/callback/google` redirect and add `webshookeng@gmail.com` as test user; enable Google Calendar API) |
    | `LINKEDIN_CLIENT_ID` / `LINKEDIN_CLIENT_SECRET` | LinkedIn developer app with Marketing permissions |
    | `FACEBOOK_CLIENT_ID` / `FACEBOOK_CLIENT_SECRET` | Meta app with `pages_manage_posts` scope |
