@@ -50,6 +50,50 @@ Hit `POST /api/recall/poll` every 2 minutes (e.g., via Vercel Cron). If you set
 - Manual regenerate buttons on the meeting detail page let advisors retry email
   copy or push social posts live with one click, showing real-time status badges.
 
+### Deployment (Vercel + Supabase)
+
+1. **Create infrastructure**
+   - Provision a Supabase (or any Postgres) project. Copy the pooled connection
+     string into `DATABASE_URL` and the “direct” string into `DIRECT_URL`.
+   - In Vercel, import this repo and select the **Next.js** framework preset.
+
+2. **Set environment variables** (Vercel → Project → Settings → Environment)
+
+   | Variable | Description |
+   | --- | --- |
+   | `DATABASE_URL`, `DIRECT_URL` | Supabase Postgres URLs |
+   | `NEXTAUTH_SECRET` | `openssl rand -hex 32` (must match locally & prod) |
+   | `NEXTAUTH_URL` | e.g. `https://your-app.vercel.app` |
+   | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Cloud OAuth (include `https://your-app.vercel.app/api/auth/callback/google` redirect and add `webshookeng@gmail.com` as test user; enable Google Calendar API) |
+   | `LINKEDIN_CLIENT_ID` / `LINKEDIN_CLIENT_SECRET` | LinkedIn developer app with Marketing permissions |
+   | `FACEBOOK_CLIENT_ID` / `FACEBOOK_CLIENT_SECRET` | Meta app with `pages_manage_posts` scope |
+   | `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Optional if you expose Supabase client-side (currently unused but reserved) |
+   | `RECALL_API_KEY` | Provided Recall.ai key |
+   | `RECALL_POLL_SECRET` | Any random string (used to secure the polling endpoint; optional but recommended) |
+   | `OPENAI_API_KEY` | OpenAI key for GPT-powered copy (fallback template used if absent) |
+
+3. **Run migrations**
+   - Locally: `npx prisma migrate deploy` (or `db push`) against Supabase to ensure all schema changes exist in prod.
+   - Commit and push so Vercel picks up the latest Prisma client.
+
+4. **Configure OAuth redirect URIs**
+   - Google: `https://your-app.vercel.app/api/auth/callback/google`
+   - LinkedIn: `https://your-app.vercel.app/api/auth/callback/linkedin`
+   - Facebook: `https://your-app.vercel.app/api/auth/callback/facebook`
+   - Add the Vercel domain to each provider’s authorized origins.
+
+5. **Set up Recall polling**
+   - In Vercel → Settings → Cron Jobs, create a job hitting `POST https://your-app.vercel.app/api/recall/poll` every 2 minutes.
+   - If you set `RECALL_POLL_SECRET`, add header `Authorization: Bearer <secret>` via the Cron UI.
+
+6. **Deploy**
+   - Push to the main branch (or trigger a Vercel deploy). Ensure `npm run build` succeeds in CI.
+   - After the first deploy, test:
+     1. Sign in with Google.
+     2. Sync calendars and toggle the notetaker.
+     3. Wait for Recall polling to ingest a transcript and confirm automations generate posts/emails.
+     4. Connect LinkedIn/Facebook and post a sample draft.
+
 ### Feature map
 
 - `/` – marketing splash with CTA

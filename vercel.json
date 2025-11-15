@@ -1,0 +1,15 @@
+{
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/recall/poll",
+      "schedule": "*/2 * * * *"
+    }
+  ]
+}
+
