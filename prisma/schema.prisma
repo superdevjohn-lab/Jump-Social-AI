@@ -107,8 +107,11 @@ model Automation {
   id          String        @id @default(cuid())
   userId      String
   name        String
+  type        String        @default("Generate post")
   platform    SocialPlatform
   prompt      String        @db.Text
+  description String?       @db.Text
+  example     String?       @db.Text
   enabled     Boolean       @default(true)
   autoPost    Boolean       @default(false)
   createdAt   DateTime      @default(now())
@@ -123,6 +126,9 @@ model Meeting {
   id                String          @id @default(cuid())
   userId            String
   externalEventId   String
+  sourceAccountEmail String?
+  sourceCalendarId  String?
+  sourceCalendarTitle String?
   title             String
   description       String?
   platform          MeetingPlatform @default(OTHER)
@@ -150,6 +156,7 @@ model MeetingTranscript {
   meetingId   String   @unique
   summary     String?  @db.Text
   rawText     String   @db.Text
+  followUpEmail String? @db.Text
   data        Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

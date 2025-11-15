@@ -1,7 +1,6 @@
 import Link from "next/link";
 
-import { auth, signIn, signOut } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -11,84 +10,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-
-const oauthProviders = [
-  {
-    id: "google",
-    label: "Google",
-    helper: "Required for login + calendar sync",
-    envKeys: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
-  },
-  {
-    id: "linkedin",
-    label: "LinkedIn",
-    helper: "Needed to publish LinkedIn updates",
-    envKeys: ["LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET"],
-  },
-  {
-    id: "facebook",
-    label: "Facebook",
-    helper: "Post to Facebook Pages or feeds",
-    envKeys: ["FACEBOOK_CLIENT_ID", "FACEBOOK_CLIENT_SECRET"],
-  },
-] as const;
-
-type ProviderId = (typeof oauthProviders)[number]["id"];
-
-const isConfigured = (keys: readonly string[]) =>
-  keys.every((key) => Boolean(process.env[key]));
-
-const enabledProviders = oauthProviders.filter((provider) =>
-  isConfigured(provider.envKeys),
-);
-
-const providerActions: Record<ProviderId, () => Promise<void>> = {
-  google: async () => {
-    "use server";
-    await signIn("google", { redirectTo: "/" });
-  },
-  linkedin: async () => {
-    "use server";
-    await signIn("linkedin", { redirectTo: "/" });
-  },
-  facebook: async () => {
-    "use server";
-    await signIn("facebook", { redirectTo: "/" });
-  },
-};
-
-async function handleSignOut() {
-  "use server";
-  await signOut({ redirectTo: "/" });
-}
+import { getEnabledProviders } from "@/lib/providers";
+import { startSignIn } from "@/lib/server-actions/auth-actions";
 
 export default async function Home() {
   const session = await auth();
+  const enabledProviders = getEnabledProviders();
   const defaultProvider = enabledProviders[0];
-  const linkedAccounts = session
-    ? await prisma.account.findMany({
-        where: { userId: session.user.id },
-        select: {
-          id: true,
-          provider: true,
-          providerAccountId: true,
-          createdAt: true,
-        },
-        orderBy: { createdAt: "asc" },
-      })
-    : [];
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-10 px-6 py-16">
-      <section className="space-y-6">
+    <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-16 px-6 py-20">
+      <section className="space-y-6" id="auth">
         <p className="text-sm uppercase tracking-widest text-primary">
           Jump Social AI
         </p>
@@ -103,10 +35,15 @@ export default async function Home() {
         <div className="flex flex-wrap gap-3">
           {session ? (
             <Button size="lg" asChild>
-              <Link href="/dashboard">Go to dashboard</Link>
+              <Link href="/dashboard">Go to upcoming meetings</Link>
             </Button>
           ) : defaultProvider ? (
-            <form action={providerActions[defaultProvider.id]}>
+            <form
+              action={async () => {
+                "use server";
+                await startSignIn(defaultProvider.id, "/dashboard");
+              }}
+            >
               <Button size="lg" type="submit">
                 Sign in with {defaultProvider.label}
               </Button>
@@ -116,9 +53,15 @@ export default async function Home() {
               Add OAuth credentials to sign in
             </Button>
           )}
-          <Button variant="outline" size="lg">
-            View roadmap
-          </Button>
+          {session ? (
+            <Button variant="outline" size="lg" asChild>
+              <Link href="/settings">Open settings</Link>
+            </Button>
+          ) : (
+            <Button variant="outline" size="lg" asChild>
+              <a href="#features">Discover features</a>
+            </Button>
+          )}
         </div>
       </section>
 
@@ -140,129 +83,137 @@ export default async function Home() {
               "Generate posts, review drafts, and publish straight to LinkedIn or Facebook.",
           },
         ].map((feature) => (
-          <Card key={feature.title}>
-            <CardHeader>
-              <CardTitle>{feature.title}</CardTitle>
-              <CardDescription>{feature.description}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Coming together in Steps 1-3 of the build plan.
-              </p>
-            </CardContent>
-          </Card>
+            <Card key={feature.title}>
+              <CardHeader>
+                <CardTitle>{feature.title}</CardTitle>
+                <CardDescription>{feature.description}</CardDescription>
+              </CardHeader>
+            </Card>
         ))}
       </section>
 
-      <section className="grid gap-6 md:grid-cols-2">
-        <Card>
+      <section className="grid gap-6 rounded-2xl border bg-card/60 p-8 md:grid-cols-3">
+        {[
+          {
+            value: "2 min",
+            label: "from transcript to post-ready draft",
+          },
+          {
+            value: "5x",
+            label: "more meetings turning into marketing stories",
+          },
+          {
+            value: "0%",
+            label: "chance of missing a call—Recall bots join automatically",
+          },
+        ].map((stat) => (
+          <div key={stat.label}>
+            <p className="text-3xl font-semibold tracking-tight">{stat.value}</p>
+            <p className="text-sm text-muted-foreground">{stat.label}</p>
+          </div>
+        ))}
+      </section>
+
+      <section id="features" className="space-y-6">
+        <div className="space-y-2">
+          <Badge variant="secondary">How it works</Badge>
+          <h2 className="text-3xl font-semibold">From calendar to social feed</h2>
+          <p className="text-muted-foreground">
+            Jump Social AI watches your meetings end-to-end and turns them into
+            publish-ready content automatically.
+          </p>
+        </div>
+        <div className="grid gap-6 md:grid-cols-3">
+          {[
+            {
+              step: "01",
+              title: "Sync calendars",
+              body: "Connect unlimited Google accounts. Jump merges every client touchpoint into one agenda.",
+            },
+            {
+              step: "02",
+              title: "Capture context",
+              body: "Recall.ai joins Zoom/Meet/Teams, records the conversation, and delivers transcripts within minutes.",
+            },
+            {
+              step: "03",
+              title: "Publish everywhere",
+              body: "Automations draft tailored posts per platform, ready for one-click approval—or auto-post for you.",
+            },
+          ].map((item) => (
+            <Card key={item.step}>
+              <CardHeader>
+                <p className="text-sm font-mono text-muted-foreground">
+                  {item.step}
+                </p>
+                <CardTitle>{item.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">{item.body}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      <section className="grid gap-8 md:grid-cols-2">
+        <Card className="h-full">
           <CardHeader>
-            <CardTitle>
-              {session ? "You’re signed in" : "Authenticate your workspace"}
-            </CardTitle>
+            <CardTitle>Why advisors choose Jump</CardTitle>
             <CardDescription>
-              {session
-                ? "Use the buttons below to link additional social accounts. Linking Google is required for calendar sync."
-                : "Choose a provider to create an account. You can link more providers in settings later."}
+              Everything you need to turn meetings into marketing.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {session && (
-              <div className="rounded-md border border-dashed border-border p-4 text-sm">
-                <p className="font-medium">Signed in as</p>
-                <p className="text-muted-foreground">
-                  {session.user.name ?? session.user.email}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  User ID: {session.user.id}
-                </p>
+            {[
+              "Smart automations with editable prompts and compliance-friendly templates.",
+              "One workspace for Zoom, Teams, Meet—no manual uploads or copying.",
+              "Native LinkedIn + Facebook posting with audit-ready history.",
+            ].map((item) => (
+              <div key={item} className="flex items-start gap-2">
+                <span className="mt-1 h-2 w-2 rounded-full bg-primary" />
+                <p className="text-sm text-muted-foreground">{item}</p>
               </div>
-            )}
-
-            <div className="space-y-3">
-              {enabledProviders.length === 0 && (
-                <p className="text-sm text-destructive">
-                  No OAuth providers configured. Add credentials to
-                  `.env.local`.
-                </p>
-              )}
-              {enabledProviders.map((provider) => (
-                <form
-                  key={provider.id}
-                  action={providerActions[provider.id]}
-                  className="space-y-1"
-                >
-                  <Button
-                    variant="outline"
-                    type="submit"
-                    className="w-full justify-between"
-                  >
-                    <span>
-                      {session ? "Connect" : "Continue with"} {provider.label}
-                    </span>
-                    <Badge variant="secondary">{provider.helper}</Badge>
-                  </Button>
-                </form>
-              ))}
-            </div>
-
-            {session && (
-              <form action={handleSignOut}>
-                <Button variant="ghost" type="submit" className="w-full">
-                  Sign out
-                </Button>
-              </form>
-            )}
+            ))}
           </CardContent>
         </Card>
-
-        <Card>
+        <Card className="h-full bg-muted/50">
           <CardHeader>
-            <CardTitle>Connected accounts</CardTitle>
+            <CardTitle>Advisor spotlight</CardTitle>
             <CardDescription>
-              Linked providers are stored in Supabase via the Prisma adapter.
+              Real workflows from firms using Jump Social AI.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            {session ? (
-              linkedAccounts.length ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Provider</TableHead>
-                      <TableHead>Account</TableHead>
-                      <TableHead>Linked</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {linkedAccounts.map((account) => (
-                      <TableRow key={account.id}>
-                        <TableCell className="capitalize">
-                          {account.provider}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {account.providerAccountId}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {account.createdAt.toLocaleDateString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No accounts linked yet. Use the buttons on the left to connect
-                  Google, LinkedIn, or Facebook.
-                </p>
-              )
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Sign in to view and manage linked providers.
-              </p>
-            )}
+          <CardContent className="space-y-4 text-sm text-muted-foreground">
+            <p>
+              “We stopped writing recap posts at 10pm. Jump watches every review
+              meeting, drafts the email follow-up, and schedules the LinkedIn
+              version instantly.”
+            </p>
+            <p className="font-medium text-foreground">
+              — Maya, Principal at Northshore Wealth
+            </p>
           </CardContent>
         </Card>
+      </section>
+
+      <section className="rounded-2xl border bg-card/80 p-8 text-center">
+        <Badge variant="secondary">Integrations</Badge>
+        <h2 className="mt-4 text-3xl font-semibold">
+          Built for modern advisory teams
+        </h2>
+        <p className="mt-2 text-muted-foreground">
+          Works with Google Workspace, Zoom, Microsoft Teams, Recall.ai, LinkedIn,
+          Facebook, and your compliance review process.
+        </p>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
+          <span>Google Workspace</span>
+          <span>Zoom</span>
+          <span>Microsoft Teams</span>
+          <span>Recall.ai</span>
+          <span>LinkedIn</span>
+          <span>Facebook</span>
+        </div>
       </section>
     </main>
   );

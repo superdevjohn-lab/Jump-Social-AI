@@ -3,9 +3,11 @@ import {
   MeetingPlatform,
   MeetingStatus,
   type Account,
+  Prisma,
 } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { getAccountEmail } from "@/lib/account-utils";
 
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const SYNC_WINDOW_DAYS = 14;
@@ -164,6 +166,8 @@ export async function syncGoogleCalendarsForUser(userId: string) {
     try {
       const authClient = await buildGoogleClient(account);
       const calendar = google.calendar({ version: "v3", auth: authClient });
+      const accountEmail =
+        getAccountEmail(account) ?? `${account.providerAccountId}@google`;
 
       const calendarList = await calendar.calendarList.list({
         minAccessRole: "reader",
@@ -172,6 +176,9 @@ export async function syncGoogleCalendarsForUser(userId: string) {
       for (const cal of calendarList.data.items ?? []) {
         if (!cal.id || cal.deleted) continue;
         if (cal.accessRole === "freeBusyReader") continue;
+        if (cal.id.includes("#holiday@group.v.calendar.google.com")) continue;
+        if (cal.id.includes("#contacts@group.v.calendar.google.com")) continue;
+        if (cal.summary?.toLowerCase().includes("holidays")) continue;
 
         const eventsResponse = await calendar.events.list({
           calendarId: cal.id,
@@ -184,6 +191,7 @@ export async function syncGoogleCalendarsForUser(userId: string) {
 
         for (const event of eventsResponse.data.items ?? []) {
           if (!event.id || event.status === "cancelled") continue;
+          if (event.eventType === "holiday") continue;
 
           const startIso = event.start?.dateTime ?? event.start?.date;
           const endIso =
@@ -205,6 +213,8 @@ export async function syncGoogleCalendarsForUser(userId: string) {
               undefined,
           );
           const externalEventId = `${cal.id}:${event.id}`;
+          const attendeesJson = (event.attendees ??
+            []) as unknown as Prisma.InputJsonValue;
 
           await prisma.meeting.upsert({
             where: {
@@ -216,6 +226,9 @@ export async function syncGoogleCalendarsForUser(userId: string) {
             create: {
               userId,
               externalEventId,
+              sourceAccountEmail: accountEmail,
+              sourceCalendarId: cal.id,
+              sourceCalendarTitle: cal.summary,
               title: event.summary ?? "Untitled meeting",
               description: event.description,
               platform,
@@ -226,13 +239,13 @@ export async function syncGoogleCalendarsForUser(userId: string) {
                 event.start?.timeZone ??
                 cal.timeZone ??
                 Intl.DateTimeFormat().resolvedOptions().timeZone,
-              attendees: event.attendees ?? [],
+              attendees: attendeesJson,
               notetakerEnabled: false,
               status:
                 startTime.getTime() > Date.now()
                   ? MeetingStatus.UPCOMING
                   : MeetingStatus.COMPLETED,
-            },
+            } as any,
             update: {
               title: event.summary ?? "Untitled meeting",
               description: event.description,
@@ -244,12 +257,15 @@ export async function syncGoogleCalendarsForUser(userId: string) {
                 event.start?.timeZone ??
                 cal.timeZone ??
                 Intl.DateTimeFormat().resolvedOptions().timeZone,
-              attendees: event.attendees ?? [],
+              attendees: attendeesJson,
+              sourceAccountEmail: accountEmail,
+              sourceCalendarId: cal.id,
+              sourceCalendarTitle: cal.summary,
               status:
                 startTime.getTime() > Date.now()
                   ? MeetingStatus.UPCOMING
                   : MeetingStatus.COMPLETED,
-            },
+            } as any,
           });
 
           syncedEvents += 1;
