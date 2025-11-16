@@ -36,10 +36,24 @@ if (process.env.LINKEDIN_CLIENT_ID && process.env.LINKEDIN_CLIENT_SECRET) {
     LinkedIn({
       clientId: process.env.LINKEDIN_CLIENT_ID,
       clientSecret: process.env.LINKEDIN_CLIENT_SECRET,
+      client: { token_endpoint_auth_method: "client_secret_post" },
+      userinfo: {
+        url: "https://api.linkedin.com/v2/userinfo",
+      },
+      token: {
+        url: "https://www.linkedin.com/oauth/v2/accessToken",
+      },
       authorization: {
+        url: "https://www.linkedin.com/oauth/v2/authorization",
         params: {
-          scope: "r_liteprofile r_emailaddress w_member_social",
+          scope: "profile email openid",
+          prompt: "consent",
+          access_type: "offline",
+          response_type: "code",
         },
+        // params: {
+        //   scope: "r_liteprofile r_emailaddress w_member_social",
+        // },
       },
       profile(profile: LinkedInProfile) {
         const rawProfile = profile as LinkedInProfile & Record<string, any>;
