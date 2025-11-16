@@ -46,14 +46,11 @@ if (process.env.LINKEDIN_CLIENT_ID && process.env.LINKEDIN_CLIENT_SECRET) {
       authorization: {
         url: "https://www.linkedin.com/oauth/v2/authorization",
         params: {
-          scope: "profile email openid",
+          scope: "profile email openid w_member_social",
           prompt: "consent",
           access_type: "offline",
           response_type: "code",
         },
-        // params: {
-        //   scope: "r_liteprofile r_emailaddress w_member_social",
-        // },
       },
       profile(profile: LinkedInProfile) {
         const rawProfile = profile as LinkedInProfile & Record<string, any>;
