@@ -34,6 +34,7 @@ function pickPlatform(source: string | undefined): MeetingPlatform {
   }
   if (
     normalized.includes("teams.microsoft.com") ||
+    normalized.includes("teams.live.com") ||
     normalized.includes("microsoft.com/l/meetup-join")
   ) {
     return MeetingPlatform.MICROSOFT_TEAMS;
@@ -48,6 +49,21 @@ function extractFirstUrl(text?: string | null) {
   return match?.[0];
 }
 
+function extractTeamsMeetingUrl(text?: string | null): string | undefined {
+  if (!text) return undefined;
+  
+  // Teams meeting URLs can be in format: teams.live.com/meet/...
+  // Look for the actual meeting URL, not download/help links
+  const teamsMeetRegex = /https?:\/\/teams\.live\.com\/meet\/[^\s<>)]+/i;
+  const match = text.match(teamsMeetRegex);
+  if (match) return match[0];
+  
+  // Fallback to generic Teams URLs
+  const teamsUrlRegex = /https?:\/\/[^\s<>)]*teams\.(microsoft\.com|live\.com)[^\s<>)]*/i;
+  const fallbackMatch = text.match(teamsUrlRegex);
+  return fallbackMatch?.[0];
+}
+
 function extractConferenceUrl(event: calendar_v3.Schema$Event) {
   if (event.hangoutLink) return event.hangoutLink;
   const entryPoint = event.conferenceData?.entryPoints?.find(
@@ -55,6 +71,16 @@ function extractConferenceUrl(event: calendar_v3.Schema$Event) {
   );
   if (entryPoint?.uri) {
     return entryPoint.uri;
+  }
+
+  // Check if it's a Teams meeting - extract the specific meeting URL
+  const description = event.description || "";
+  const location = event.location || "";
+  const combinedText = `${location} ${description}`.toLowerCase();
+  
+  if (combinedText.includes("teams") || combinedText.includes("microsoft teams")) {
+    const teamsUrl = extractTeamsMeetingUrl(event.description || event.location);
+    if (teamsUrl) return teamsUrl;
   }
 
   return (
